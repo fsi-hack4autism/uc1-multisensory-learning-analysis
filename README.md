@@ -10,3 +10,18 @@
 | Rishi Bhatnagar | Use Case Lead | LPL Financial |
 | Amy Backes | Subject Matter Expert | BCBA |
 | Rob Reese | Tech Lead | Microsoft |
+
+
+Output behaviors to be shown on the dashboard:
+1. How well is the student following the context of the conversation
+    a. Transcribe the video
+    b. Identify the speakers
+    c. Identify the context of the full conversation
+    d. How well does each utterance of student follow the conversation
+3. What is the student's emotion during the conversation - e.g., angry, frustrated, happy, etc.
+    a. Speed, Decibel, ans tremble of the voice
+    b. identify speakers
+    c. look for words that demonstrate emotions
+5. Is the student exhibiting any stimming behavior = e.g., scripting (repeating themselves), echoing the other speakers
+    a. look for repeating words
+    b. identify speakers
