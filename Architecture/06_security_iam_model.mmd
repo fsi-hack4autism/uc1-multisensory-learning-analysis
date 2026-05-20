@@ -1,0 +1,37 @@
+%% Security and IAM Model
+flowchart LR
+    user[Facilitator] --> web[Cloud Run Web<br/>commandcenter-web-sa]
+    web --> api[Cloud Run API<br/>commandcenter-api-sa]
+
+    api -->|write objects| media[(Cloud Storage Media Bucket)]
+    api -->|write/read metadata| sql[(Cloud SQL PostgreSQL)]
+    api -->|publish event| pubsub[[Pub/Sub session-uploaded]]
+    api -->|read secrets| secrets[Secret Manager]
+
+    pubsub --> worker[Cloud Run Worker<br/>commandcenter-worker-sa]
+
+    worker -->|read media/write audio| media
+    worker -->|read/write analysis| analysis[(Cloud Storage Analysis Bucket)]
+    worker -->|read/write processing data| sql
+    worker -->|call| speech[Speech-to-Text]
+    worker -->|call| vertex[Vertex AI Gemini]
+    worker -->|optional call| video[Video Intelligence API]
+    worker -->|read secrets| secrets
+
+    web -. no direct access .-> media
+    web -. no direct access .-> sql
+    user -. no direct bucket access .-> media
+
+    subgraph Guardrails
+        signed[Signed URLs for temporary media access]
+        private[Private buckets only]
+        lifecycle[Lifecycle expiration for demo media]
+        noRawLogs[Do not log raw transcript by default]
+        leastPrivilege[Least-privilege service accounts]
+    end
+
+    api --> signed
+    media --> private
+    media --> lifecycle
+    api --> noRawLogs
+    worker --> leastPrivilege

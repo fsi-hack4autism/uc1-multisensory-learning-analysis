@@ -1,0 +1,48 @@
+%% GCP Deployment Architecture
+flowchart TB
+    dev[Developer Workstation] --> repo[GitHub Repository]
+    repo --> actions[GitHub Actions / Cloud Build]
+    actions --> registry[Artifact Registry<br/>Container Images]
+
+    registry --> web[Cloud Run<br/>commandcenter-web]
+    registry --> api[Cloud Run<br/>commandcenter-api]
+    registry --> worker[Cloud Run<br/>commandcenter-processor]
+    registry --> cleanup[Cloud Run Job<br/>commandcenter-cleanup]
+
+    lb[Optional HTTPS Load Balancer<br/>+ Cloud Armor] --> web
+    web --> api
+
+    api --> sql[(Cloud SQL PostgreSQL)]
+    api --> gcs[(Cloud Storage Buckets)]
+    api --> pubsub[[Pub/Sub Topics]]
+
+    pubsub --> worker
+    worker --> sql
+    worker --> gcs
+
+    worker --> speech[Speech-to-Text API]
+    worker --> vertex[Vertex AI Gemini]
+    worker --> video[Video Intelligence API]
+
+    secrets[Secret Manager] --> web
+    secrets --> api
+    secrets --> worker
+
+    scheduler[Cloud Scheduler] --> cleanup
+    cleanup --> gcs
+    cleanup --> sql
+
+    web --> logs[Cloud Logging / Monitoring]
+    api --> logs
+    worker --> logs
+    cleanup --> logs
+
+    classDef compute fill:#e8f0fe,stroke:#1a73e8;
+    classDef data fill:#fef7e0,stroke:#f9ab00;
+    classDef ai fill:#e6f4ea,stroke:#34a853;
+    classDef cicd fill:#fce8e6,stroke:#d93025;
+
+    class web,api,worker,cleanup,lb,scheduler compute;
+    class sql,gcs,secrets,pubsub data;
+    class speech,vertex,video ai;
+    class repo,actions,registry cicd;

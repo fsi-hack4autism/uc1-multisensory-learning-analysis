@@ -1,0 +1,33 @@
+%% Dashboard UI Layout
+flowchart TD
+    A[Learning Command Center Dashboard] --> B[Header]
+    B --> B1[Session Title]
+    B --> B2[Upload Date]
+    B --> B3[Processing Status]
+    B --> B4[Overall Health Score]
+
+    A --> C[Metric Card Grid]
+    C --> C1[Engagement Score]
+    C --> C2[Confusion Risk]
+    C --> C3[Frustration Risk]
+    C --> C4[Participation Score]
+    C --> C5[Energy Level]
+    C --> C6[Instructor Talk Ratio]
+    C --> C7[Learner Talk Ratio]
+    C --> C8[Confidence Level]
+
+    A --> D[Main Insight Area]
+    D --> D1[Session Summary]
+    D --> D2[Recommended Interventions]
+    D --> D3[Key Moments Timeline]
+    D --> D4[Transcript Viewer]
+    D --> D5[Optional Visual Signals Panel]
+
+    D3 --> E[Click Timeline Marker]
+    E --> F[Highlight Related Transcript Segment]
+    F --> G[Show Supporting Evidence Snippet]
+
+    D2 --> H[Recommendation Card]
+    H --> H1[Reason Triggered]
+    H --> H2[Priority]
+    H --> H3[Suggested Facilitator Action]

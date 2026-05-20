@@ -1,0 +1,36 @@
+%% Learning Session Status State Machine
+stateDiagram-v2
+    [*] --> Uploaded
+
+    Uploaded --> Queued: Pub/Sub event published
+    Queued --> Processing: Worker starts
+
+    Processing --> ExtractingAudio: Video media
+    Processing --> Transcribing: Audio media
+
+    ExtractingAudio --> Transcribing: Audio extracted
+    ExtractingAudio --> Failed: Extraction error
+
+    Transcribing --> AnalyzingTranscript: Transcript generated
+    Transcribing --> Failed: Speech-to-Text error
+
+    AnalyzingTranscript --> AnalyzingVideo: Video analysis enabled
+    AnalyzingTranscript --> GeneratingMetrics: Video analysis disabled
+    AnalyzingTranscript --> Failed: Vertex AI analysis error
+
+    AnalyzingVideo --> GeneratingMetrics: Visual signals generated
+    AnalyzingVideo --> GeneratingMetrics: Vision skipped / low confidence
+    AnalyzingVideo --> Failed: Fatal video analysis error
+
+    GeneratingMetrics --> GeneratingRecommendations
+    GeneratingRecommendations --> Completed
+
+    Queued --> Failed: Worker unavailable after retries
+    Processing --> Failed: Unexpected processing error
+
+    Completed --> Reprocessing: User requests reanalysis
+    Failed --> Reprocessing: User retries
+    Reprocessing --> Queued
+
+    Completed --> [*]
+    Failed --> [*]

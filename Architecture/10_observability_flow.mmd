@@ -1,0 +1,30 @@
+%% Observability and Telemetry Flow
+flowchart TD
+    api[Cloud Run API] --> logApi[Structured Logs]
+    worker[Cloud Run Worker] --> logWorker[Structured Logs]
+    web[Blazor Web] --> logWeb[Structured Logs]
+
+    logApi --> cloudLogging[Cloud Logging]
+    logWorker --> cloudLogging
+    logWeb --> cloudLogging
+
+    api --> trace[Cloud Trace]
+    worker --> trace
+
+    cloudLogging --> monitoring[Cloud Monitoring]
+    cloudLogging --> errorReporting[Error Reporting]
+
+    monitoring --> dashboard[Operational Dashboard]
+    monitoring --> alerts[Alerts]
+
+    alerts --> A1[Transcription failure rate high]
+    alerts --> A2[Vertex AI latency high]
+    alerts --> A3[Pub/Sub retry count high]
+    alerts --> A4[Cloud Run error rate high]
+    alerts --> A5[Cloud SQL connection errors]
+
+    dashboard --> M1[Upload duration]
+    dashboard --> M2[Processing duration]
+    dashboard --> M3[Speech-to-Text duration]
+    dashboard --> M4[Gemini prompt latency]
+    dashboard --> M5[Cost-sensitive AI calls]

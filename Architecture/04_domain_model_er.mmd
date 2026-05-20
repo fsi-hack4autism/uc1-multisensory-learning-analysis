@@ -1,0 +1,85 @@
+%% Domain Model / ER Diagram
+erDiagram
+    LEARNING_SESSION ||--o{ TRANSCRIPT_SEGMENT : contains
+    LEARNING_SESSION ||--o{ SESSION_METRIC : produces
+    LEARNING_SESSION ||--o{ SESSION_INSIGHT : generates
+    LEARNING_SESSION ||--o{ SESSION_RECOMMENDATION : recommends
+    LEARNING_SESSION ||--o{ VISUAL_SIGNAL : optionally_contains
+    LEARNING_SESSION ||--o{ PROCESSING_EVENT : tracks
+
+    LEARNING_SESSION {
+        uuid id PK
+        string title
+        string sourceFileName
+        string cloudStorageBucket
+        string cloudStorageObjectName
+        string extractedAudioObjectName
+        string mediaType
+        string status
+        datetime createdAtUtc
+        datetime processedAtUtc
+        string errorMessage
+    }
+
+    TRANSCRIPT_SEGMENT {
+        uuid id PK
+        uuid learningSessionId FK
+        timespan startTime
+        timespan endTime
+        string speaker
+        string text
+        decimal sentimentScore
+        string detectedSignal
+    }
+
+    SESSION_METRIC {
+        uuid id PK
+        uuid learningSessionId FK
+        string metricKey
+        string metricLabel
+        decimal score
+        string rating
+        string explanation
+        decimal confidence
+    }
+
+    SESSION_INSIGHT {
+        uuid id PK
+        uuid learningSessionId FK
+        string insightType
+        string title
+        string description
+        timespan timestamp
+        decimal confidence
+    }
+
+    SESSION_RECOMMENDATION {
+        uuid id PK
+        uuid learningSessionId FK
+        string recommendationText
+        string triggerReason
+        int priority
+    }
+
+    VISUAL_SIGNAL {
+        uuid id PK
+        uuid learningSessionId FK
+        timespan timestamp
+        string signalType
+        string label
+        decimal confidence
+        string explanation
+    }
+
+    PROCESSING_EVENT {
+        uuid id PK
+        uuid learningSessionId FK
+        string stage
+        string status
+        datetime startedAtUtc
+        datetime completedAtUtc
+        int durationMs
+        string errorCode
+        string errorMessage
+        string correlationId
+    }

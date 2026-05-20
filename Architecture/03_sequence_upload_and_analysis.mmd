@@ -1,0 +1,54 @@
+%% Upload and Analysis Sequence
+sequenceDiagram
+    actor Facilitator
+    participant Web as Blazor Web App
+    participant API as Cloud Run API
+    participant GCS as Cloud Storage
+    participant DB as Cloud SQL PostgreSQL
+    participant PubSub as Pub/Sub
+    participant Worker as Cloud Run Worker
+    participant Speech as Speech-to-Text
+    participant Gemini as Vertex AI Gemini
+    participant Video as Video Intelligence API
+
+    Facilitator->>Web: Upload or record session clip
+    Web->>API: POST /api/v1/learning-sessions/upload
+    API->>API: Validate media
+    API->>GCS: Store media object
+    API->>DB: Create LearningSession(status=Uploaded)
+    API->>PubSub: Publish SessionUploaded event
+    API-->>Web: Return sessionId + processing status
+
+    PubSub-->>Worker: Deliver SessionUploaded event
+    Worker->>DB: Mark status=Processing
+    Worker->>GCS: Read media object
+
+    alt Video file
+        Worker->>Worker: Extract audio with FFmpeg
+        Worker->>GCS: Store extracted audio
+    end
+
+    Worker->>Speech: Transcribe audio
+    Speech-->>Worker: Timestamped transcript
+    Worker->>DB: Save transcript segments
+
+    Worker->>Gemini: Analyze transcript for learning signals
+    Gemini-->>Worker: Structured JSON analysis
+    Worker->>DB: Save insights and metric candidates
+
+    opt Video analysis enabled
+        Worker->>Video: Analyze video signals
+        Video-->>Worker: Visual signal metadata
+        Worker->>DB: Save visual signals
+    end
+
+    Worker->>Worker: Calculate session metrics
+    Worker->>Gemini: Generate summary and interventions
+    Gemini-->>Worker: Summary + recommendations
+    Worker->>DB: Save metrics, summary, recommendations
+    Worker->>DB: Mark status=Completed
+
+    Web->>API: GET /api/v1/learning-sessions/{id}
+    API->>DB: Load dashboard data
+    API-->>Web: Metrics, transcript, insights, recommendations
+    Web-->>Facilitator: Display dashboard

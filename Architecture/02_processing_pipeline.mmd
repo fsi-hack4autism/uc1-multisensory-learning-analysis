@@ -1,0 +1,39 @@
+%% Session Processing Pipeline
+flowchart TD
+    A[Upload or Record Session Clip] --> B[Validate File Type, Size, Duration]
+    B -->|Valid| C[Store Media in Cloud Storage]
+    B -->|Invalid| X[Return Validation Error]
+
+    C --> D[Create LearningSession Record<br/>Status: Uploaded]
+    D --> E[Publish Pub/Sub Event<br/>SessionUploaded]
+    E --> F[Cloud Run Worker Starts Processing]
+
+    F --> G{Media Type?}
+    G -->|Video| H[Extract Audio with FFmpeg]
+    G -->|Audio| I[Use Uploaded Audio]
+
+    H --> J[Store Extracted Audio<br/>Cloud Storage]
+    I --> K[Call Speech-to-Text]
+    J --> K
+
+    K --> L[Store Transcript Segments<br/>Cloud SQL]
+    L --> M[Call Vertex AI Gemini<br/>Transcript Analysis]
+    M --> N[Generate Learning Signals]
+
+    N --> O{Video Analysis Enabled?}
+    O -->|Yes| P[Call Video Intelligence API<br/>or Custom Vision Worker]
+    O -->|No| Q[Skip Visual Signals]
+
+    P --> R[Store Visual Signals]
+    Q --> S[Calculate Session Metrics]
+    R --> S
+
+    S --> T[Generate Summary + Recommendations<br/>Vertex AI Gemini]
+    T --> U[Persist Metrics, Insights, Recommendations]
+    U --> V[Update Status: Completed]
+    V --> W[Dashboard Displays Results]
+
+    F -->|Failure| Z[Update Status: Failed<br/>Store Error Reason]
+    K -->|Failure| Z
+    M -->|Failure| Z
+    T -->|Failure| Z

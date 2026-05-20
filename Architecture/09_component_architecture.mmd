@@ -1,0 +1,46 @@
+%% Application Component Architecture
+flowchart LR
+    subgraph Web["CommandCenter.Web"]
+        upload[Upload Component]
+        record[Browser Recording Component]
+        status[Processing Status Component]
+        cards[Metric Cards]
+        timeline[Timeline Component]
+        transcript[Transcript Viewer]
+        summary[Summary + Recommendations]
+    end
+
+    subgraph Api["CommandCenter.Api"]
+        sessionEndpoints[LearningSession Endpoints]
+        uploadEndpoint[Upload Endpoint]
+        statusEndpoint[Status Endpoint]
+        dashboardEndpoint[Dashboard Query Endpoint]
+    end
+
+    subgraph Application["CommandCenter.Application"]
+        sessionUseCases[Session Use Cases]
+        processingOrchestrator[Processing Orchestrator]
+        metricsEngine[Metrics Engine]
+        recommendationFlow[Recommendation Flow]
+    end
+
+    subgraph Infrastructure["CommandCenter.Infrastructure"]
+        gcs[GcpStorageService]
+        pubsub[PubSubPublisher]
+        speech[GcpSpeechToTextService]
+        vertex[VertexAiGeminiService]
+        video[GcpVideoAnalysisService]
+        db[EF Core DbContext]
+    end
+
+    subgraph Worker["CommandCenter.Workers"]
+        eventHandler[SessionUploaded Handler]
+        mediaProcessor[Media Processor]
+        transcriptProcessor[Transcript Processor]
+        analysisProcessor[Analysis Processor]
+    end
+
+    Web --> Api
+    Api --> Application
+    Worker --> Application
+    Application --> Infrastructure

@@ -1,0 +1,35 @@
+%% AI-Powered Learning Command Center - GCP System Architecture
+flowchart LR
+    user[Facilitator / Coach] --> web[Blazor Web App<br/>Cloud Run]
+
+    web --> api[ASP.NET Core Minimal API<br/>Cloud Run]
+    api --> sql[(Cloud SQL<br/>PostgreSQL)]
+    api --> media[(Cloud Storage<br/>Media Bucket)]
+    api --> pubsub[[Pub/Sub Topic<br/>session-uploaded]]
+
+    pubsub --> worker[Processing Worker<br/>Cloud Run Service / Job]
+
+    worker --> media
+    worker --> speech[Google Cloud<br/>Speech-to-Text]
+    worker --> vertex[Vertex AI Gemini<br/>NLP + Summary + Recommendations]
+    worker --> video[Video Intelligence API<br/>Optional Visual Signals]
+    worker --> analysis[(Cloud Storage<br/>Analysis Bucket)]
+    worker --> sql
+
+    sql --> api
+    api --> web
+
+    worker --> logging[Cloud Logging]
+    worker --> monitoring[Cloud Monitoring]
+    api --> logging
+    web --> logging
+
+    secrets[Secret Manager] --> api
+    secrets --> worker
+
+    classDef gcp fill:#e8f0fe,stroke:#1a73e8,stroke-width:1px;
+    classDef data fill:#fef7e0,stroke:#f9ab00,stroke-width:1px;
+    classDef ai fill:#e6f4ea,stroke:#34a853,stroke-width:1px;
+    class web,api,worker,pubsub,logging,monitoring,secrets gcp;
+    class sql,media,analysis data;
+    class speech,vertex,video ai;
