@@ -1,5 +1,5 @@
-<<<<<<< HEAD
 google-cloud-sdk/* 
-=======
 .env
->>>>>>> ebe8ff6 (Add api)
+__pycache__/
+*.pyc
+*.pyo
