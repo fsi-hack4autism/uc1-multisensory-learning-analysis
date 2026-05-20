@@ -7,6 +7,7 @@ Implement the system using Google Cloud-native services:
 - Cloud SQL for PostgreSQL for relational data
 - Pub/Sub for processing events
 - Google Cloud Speech-to-Text for transcription
+- LLM model to analyze the audio input directly to identify stimming
 - Vertex AI Gemini for NLP analysis, session summaries, and recommendations
 - Video Intelligence API as an optional video-analysis module
 - Secret Manager for secrets

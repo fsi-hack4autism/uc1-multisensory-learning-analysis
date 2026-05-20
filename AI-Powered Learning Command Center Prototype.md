@@ -9,14 +9,15 @@
 **Rishi**
 
 1. Video/Audio Model Analysis - **Gin**
+2. Getting an audio sample for analysis = **Rishi**
 
-2. Framework - dashboard, and parts moving around - spectrum - **Mark Dias**
+3. Framework - dashboard, and parts moving around - spectrum - **Mark Dias**
    - Tie in with Google cloud platform
    - API for the dashboard
    - Stub API for whatever technology, use that to plug in the data
-3. Audio/Visual Stimming Criteria Research - **Vikas**
+4. Audio/Visual Stimming Criteria Research - **Vikas**
    - md file to define behavior
-4. API development
+5. API development
 
 ## 1. Product Goal
 
