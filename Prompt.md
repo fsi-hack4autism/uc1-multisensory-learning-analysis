@@ -1,4 +1,4 @@
-You are building the AI-Powered Learning Command Center MVP using .NET 9, ASP.NET Core Minimal APIs, Blazor, and Google Cloud Platform.
+You are building the AI-Powered Learning Command Center MVP using .NET 10, ASP.NET Core Minimal APIs, Blazor, and Google Cloud Platform.
 
 Implement the system using Google Cloud-native services:
 
