@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+python-multipart
+google-cloud-aiplatform>=1.60.0
+vertexai
+pydantic
+sqlalchemy[asyncio]
+asyncpg
+aiosqlite
+python-dotenv

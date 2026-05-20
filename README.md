@@ -33,3 +33,63 @@ Output behaviors to be shown on the dashboard:
 1. Input & Analysis - Kevin/Vik
 2. Interpretation - Paloma
 3. Display - Pratha/Mark
+
+---
+
+## Setup
+
+### Prerequisites
+- Python 3.13.0 (see `api/.python-version`; use [pyenv](https://github.com/pyenv/pyenv) or [mise](https://mise.jdx.dev) to auto-switch)
+- A GCP project with billing enabled
+- APIs to enable (run once per project):
+  ```bash
+  gcloud services enable aiplatform.googleapis.com sqladmin.googleapis.com storage.googleapis.com run.googleapis.com
+  ```
+
+### Install Google Cloud SDK
+
+**macOS**
+```bash
+brew install --cask google-cloud-sdk
+```
+
+**Windows**
+
+Download and run the installer from https://cloud.google.com/sdk/docs/install#windows, or with winget:
+```powershell
+winget install Google.CloudSDK
+```
+
+**Linux (Debian/Ubuntu)**
+```bash
+curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg
+echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | sudo tee /etc/apt/sources.list.d/google-cloud-sdk.list
+sudo apt-get update && sudo apt-get install google-cloud-cli
+```
+
+**Linux (RPM-based: RHEL/Fedora)**
+```bash
+sudo tee -a /etc/yum.repos.d/google-cloud-sdk.repo << EOM
+[google-cloud-cli]
+name=Google Cloud CLI
+baseurl=https://packages.cloud.google.com/yum/repos/cloud-sdk-el9-x86_64
+enabled=1
+gpgcheck=1
+repo_gpgcheck=0
+gpgkey=https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+EOM
+sudo dnf install google-cloud-cli
+```
+
+### Authenticate and configure
+```bash
+gcloud init                        # log in + set default project/region
+gcloud auth application-default login   # allow local code to call GCP APIs
+```
+
+### Run the API locally
+```bash
+cd api
+pip install -r requirements.txt
+uvicorn main:app --reload
+```
