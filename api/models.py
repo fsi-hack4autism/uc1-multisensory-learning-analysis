@@ -166,6 +166,8 @@ class LearningSession(Base):
     overall_session_notes = Column(Text)
     created_at_utc = Column(DateTime, default=datetime.utcnow)
     processed_at_utc = Column(DateTime)
+    # Scoring rubric (default or therapist-customized) active for this session
+    rubric_json = Column(Text)
 
     metrics = relationship("SessionMetric", back_populates="session", cascade="all, delete-orphan")
     recommendations = relationship("SessionRecommendation", back_populates="session", cascade="all, delete-orphan")
@@ -183,6 +185,8 @@ class SessionMetric(Base):
     rating = Column(String(32))
     explanation = Column(Text)
     confidence = Column(Float)
+    # Full per-metric breakdown: timestamps/instances/context_breaks serialized as JSON
+    detail_json = Column(Text)
 
     session = relationship("LearningSession", back_populates="metrics")
 
