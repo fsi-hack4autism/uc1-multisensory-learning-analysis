@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import json
 import os
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
@@ -36,7 +37,7 @@ async def init_db() -> None:
         await conn.run_sync(Base.metadata.create_all)
 
 
-async def save_session(result: AnalysisResponse) -> None:
+async def save_session(result: AnalysisResponse, rubric: Optional[dict[str, Any]] = None) -> None:
     if _AsyncSessionLocal is None:
         return
 
@@ -52,7 +53,10 @@ async def save_session(result: AnalysisResponse) -> None:
         overall_session_notes=result.overall_session_notes,
         created_at_utc=result.analyzed_at,
         processed_at_utc=datetime.utcnow(),
+        rubric_json=json.dumps(rubric) if rubric else None,
     )
+
+    _confidence_float = {"high": 0.9, "medium": 0.6, "low": 0.3}
 
     metrics = [
         SessionMetric(
@@ -63,7 +67,15 @@ async def save_session(result: AnalysisResponse) -> None:
             score=result.emotion_overwhelm.score,
             rating=result.emotion_overwhelm.confidence,
             explanation=result.emotion_overwhelm.summary,
-            confidence={"high": 0.9, "medium": 0.6, "low": 0.3}[result.emotion_overwhelm.confidence],
+            confidence=_confidence_float[result.emotion_overwhelm.confidence],
+            detail_json=json.dumps({
+                "detected": result.emotion_overwhelm.detected,
+                "signals": result.emotion_overwhelm.signals,
+                "timestamps": [
+                    {"start": t.start, "end": t.end, "description": t.description}
+                    for t in result.emotion_overwhelm.timestamps
+                ],
+            }),
         ),
         SessionMetric(
             id=uuid.uuid4(),
@@ -73,7 +85,15 @@ async def save_session(result: AnalysisResponse) -> None:
             score=result.echolalia_scripting.score,
             rating=result.echolalia_scripting.confidence,
             explanation=result.echolalia_scripting.summary,
-            confidence={"high": 0.9, "medium": 0.6, "low": 0.3}[result.echolalia_scripting.confidence],
+            confidence=_confidence_float[result.echolalia_scripting.confidence],
+            detail_json=json.dumps({
+                "detected": result.echolalia_scripting.detected,
+                "echolalia_type": result.echolalia_scripting.echolalia_type,
+                "instances": [
+                    {"phrase": i.phrase, "repetition_count": i.repetition_count, "timestamp": i.timestamp}
+                    for i in result.echolalia_scripting.instances
+                ],
+            }),
         ),
         SessionMetric(
             id=uuid.uuid4(),
@@ -83,7 +103,14 @@ async def save_session(result: AnalysisResponse) -> None:
             score=result.conversational_context.score,
             rating=result.conversational_context.confidence,
             explanation=result.conversational_context.summary,
-            confidence={"high": 0.9, "medium": 0.6, "low": 0.3}[result.conversational_context.confidence],
+            confidence=_confidence_float[result.conversational_context.confidence],
+            detail_json=json.dumps({
+                "following_context": result.conversational_context.following_context,
+                "context_breaks": [
+                    {"timestamp": cb.timestamp, "description": cb.description}
+                    for cb in result.conversational_context.context_breaks
+                ],
+            }),
         ),
     ]
 

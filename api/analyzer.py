@@ -37,6 +37,79 @@ from models import (
 )
 
 
+# ---------------------------------------------------------------------------
+# Default scoring rubric — enforced in every Gemini prompt.
+# Therapists can override any top-level key via the rubric_overrides API field.
+# ---------------------------------------------------------------------------
+
+DEFAULT_SCORING_RUBRIC: dict[str, Any] = {
+    "emotion_overwhelm": {
+        "description": "Degree of emotional distress or overwhelm observed in the audio",
+        "bands": [
+            {"range": "0.0–0.2", "label": "Minimal",  "criteria": "No detectable distress cues; baseline calm voice, normal prosody"},
+            {"range": "0.2–0.4", "label": "Mild",      "criteria": "Slight pitch elevation or tempo increase; one isolated signal"},
+            {"range": "0.4–0.6", "label": "Moderate",  "criteria": "Multiple concurrent signals (e.g. rushed speech + volume spike); recovery within ~30 s"},
+            {"range": "0.6–0.8", "label": "Elevated",  "criteria": "Sustained distress >30 s; voice breaks, crying onset, or withdrawal"},
+            {"range": "0.8–1.0", "label": "Severe",    "criteria": "Meltdown-level indicators; prolonged crying, screaming, or complete disengagement"},
+        ],
+        "confidence_rules": {
+            "high":   "3+ distinct cues co-occur for >10 s",
+            "medium": "1–2 cues, or brief duration (<10 s)",
+            "low":    "Ambiguous signal; single data point <5 s or unclear audio",
+        },
+    },
+    "echolalia_scripting": {
+        "description": "Proportion of echoed or scripted utterances relative to total child speech",
+        "bands": [
+            {"range": "0.0–0.2", "label": "Absent",      "criteria": "No detectable echoing or scripting"},
+            {"range": "0.2–0.4", "label": "Occasional",  "criteria": "<25 % of utterances are echoed/scripted"},
+            {"range": "0.4–0.6", "label": "Frequent",    "criteria": "25–50 % of utterances; may still serve communicative function"},
+            {"range": "0.6–0.8", "label": "Predominant", "criteria": "50–75 % of utterances are echoed/scripted"},
+            {"range": "0.8–1.0", "label": "Pervasive",   "criteria": ">75 % of utterances; minimal novel spontaneous speech"},
+        ],
+        "detection_threshold": "Flag if >85 % spectral/phonetic match with antecedent utterance, OR verbatim repetition within ~2 s (immediate) or later in session (delayed), OR recognizable media/rote phrase (scripted)",
+        "confidence_rules": {
+            "high":   "Clear phonetic/spectral match or verbatim repetition; echolalia type confirmed",
+            "medium": "Probable match but audio quality or speaker overlap limits certainty",
+            "low":    "Possible scripting but insufficient evidence to classify type",
+        },
+    },
+    "conversational_context": {
+        "description": "Degree to which the child's responses track the therapist's topic (1.0 = fully on-topic, 0.0 = entirely disconnected)",
+        "bands": [
+            {"range": "0.8–1.0", "label": "On-topic",        "criteria": "Child responses directly address therapist's question/topic throughout"},
+            {"range": "0.6–0.8", "label": "Mostly on-topic", "criteria": "Generally follows context with 1–2 tangential responses"},
+            {"range": "0.4–0.6", "label": "Partial",         "criteria": "~50 % of responses track context; notable topic shifts present"},
+            {"range": "0.2–0.4", "label": "Mostly off-topic","criteria": "Majority of responses are tangential or non-sequitur"},
+            {"range": "0.0–0.2", "label": "Disconnected",    "criteria": "Responses show no discernible connection to therapist's topic"},
+        ],
+        "confidence_rules": {
+            "high":   "Clear multi-turn exchange allows reliable topic tracking",
+            "medium": "Limited exchanges or ambiguous topic boundaries",
+            "low":    "Single-turn snippet or significant unintelligible segments",
+        },
+    },
+}
+
+
+def _format_rubric(rubric: dict[str, Any]) -> str:
+    """Serialize a scoring rubric dict into a prompt-friendly text block."""
+    lines: list[str] = ["SCORING RUBRIC — assign scores strictly within these bands:\n"]
+    for metric_key, spec in rubric.items():
+        label = metric_key.upper().replace("_", " ")
+        lines.append(f"{label}:")
+        lines.append(f"  {spec.get('description', '')}")
+        for band in spec.get("bands", []):
+            lines.append(f"  {band['range']} ({band['label']}): {band['criteria']}")
+        if "detection_threshold" in spec:
+            lines.append(f"  Detection threshold: {spec['detection_threshold']}")
+        cr = spec.get("confidence_rules", {})
+        if cr:
+            lines.append(f"  Confidence — high: {cr.get('high','')} | medium: {cr.get('medium','')} | low: {cr.get('low','')}")
+        lines.append("")
+    return "\n".join(lines)
+
+
 def _detect_mime(data: bytes, header_content_type: Optional[str] = None) -> str:
     """Return audio/mpeg or video/mp4 based on magic bytes, with header as fallback."""
     # MP4 container: bytes 4-7 == b"ftyp"
@@ -57,22 +130,23 @@ def _detect_mime(data: bytes, header_content_type: Optional[str] = None) -> str:
     return "audio/mpeg"
 
 
-_AUDIO_PROMPT = """\
+_AUDIO_PROMPT_TEMPLATE = """\
 You are an ABA therapy session analyzer assisting licensed therapists.
 Analyze the provided audio clip and return structured JSON covering three areas:
 
+{rubric_block}
+
 1. EMOTION/OVERWHELM: Detect signs of emotional overwhelm or distress.
    Look for: elevated pitch, rushed or clipped speech, voice breaks, crying, meltdown sounds,
-   withdrawal silences, sudden volume changes. Score 0.0 (none) to 1.0 (severe).
+   withdrawal silences, sudden volume changes. Assign score using the rubric bands above.
 
 2. ECHOLALIA/SCRIPTING: Detect repetitive echoing of words or phrases and scripted/memorized speech
    (TV lines, rote phrases). Classify as immediate (echo within ~2 s), delayed (later reproduction),
-   scripted (memorized media/rote), or none. Per STM-03: flag >85% spectral/phonetic match with
-   antecedent utterances and flat or sing-song prosody that doesn't match conversational context.
+   scripted (memorized media/rote), or none. Apply the detection threshold and confidence rules above.
 
 3. CONVERSATIONAL CONTEXT: Assess whether the child's responses track the therapist's topic or
-   question. Score 1.0 = fully on-topic, 0.0 = entirely off-topic. Note any tangential,
-   off-topic, or non-sequitur replies.
+   question. Assign score using the rubric bands above. Note any tangential, off-topic, or
+   non-sequitur replies with their timestamps.
 
 IMPORTANT GUARDRAILS:
 - Do NOT make diagnostic claims or label the child with any condition.
@@ -114,9 +188,13 @@ class GeminiABAAnalyzer:
         filename: str,
         mime_type: str,
         context: Optional[str] = None,
+        rubric: Optional[dict[str, Any]] = None,
     ) -> GeminiAnalysisSchema:
+        active_rubric = {**DEFAULT_SCORING_RUBRIC, **(rubric or {})}
+
         is_video = mime_type == "video/mp4"
-        prompt_parts = [_AUDIO_PROMPT]
+        audio_prompt = _AUDIO_PROMPT_TEMPLATE.format(rubric_block=_format_rubric(active_rubric))
+        prompt_parts = [audio_prompt]
         if is_video:
             prompt_parts.append(_VIDEO_EXTRA)
         if context:

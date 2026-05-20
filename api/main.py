@@ -1,16 +1,17 @@
 from __future__ import annotations
 
+import json
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 import db
-from analyzer import GeminiABAAnalyzer, _detect_mime
+from analyzer import DEFAULT_SCORING_RUBRIC, GeminiABAAnalyzer, _detect_mime
 from models import AnalysisResponse
 
 load_dotenv()
@@ -40,10 +41,32 @@ async def health():
     return {"status": "ok", "db_enabled": db.is_enabled()}
 
 
+@app.get(
+    "/rubric",
+    summary="Get the default scoring rubric",
+    description=(
+        "Returns the default scoring rubric used by /analyze. "
+        "Pass a JSON-serialized subset of this structure as `rubric_overrides` "
+        "to /analyze to customize thresholds for a specific session."
+    ),
+)
+async def get_rubric():
+    return DEFAULT_SCORING_RUBRIC
+
+
 @app.post("/analyze", response_model=AnalysisResponse)
 async def analyze_session(
     audio: UploadFile = File(..., description="MP3 or MP4 file, max 20 MB"),
     context: Optional[str] = Form(default=None, description="Optional therapist context notes"),
+    rubric_overrides: Optional[str] = Form(
+        default=None,
+        description=(
+            "Optional JSON object to override specific scoring rubric sections. "
+            "Top-level keys (emotion_overwhelm, echolalia_scripting, conversational_context) "
+            "replace the corresponding default rubric section entirely. "
+            "Fetch GET /rubric to see the full default structure."
+        ),
+    ),
 ):
     media_bytes = await audio.read()
 
@@ -58,6 +81,17 @@ async def analyze_session(
             detail=f"Unsupported media type '{audio.content_type}'. Use audio/mpeg (MP3) or video/mp4.",
         )
 
+    overrides: dict[str, Any] = {}
+    if rubric_overrides:
+        try:
+            overrides = json.loads(rubric_overrides)
+            if not isinstance(overrides, dict):
+                raise ValueError("rubric_overrides must be a JSON object")
+        except (json.JSONDecodeError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail=f"Invalid rubric_overrides JSON: {exc}") from exc
+
+    active_rubric = {**DEFAULT_SCORING_RUBRIC, **overrides}
+
     session_id = str(uuid.uuid4())
     analyzed_at = datetime.utcnow()
 
@@ -67,6 +101,7 @@ async def analyze_session(
             filename=audio.filename or "upload",
             mime_type=mime_type,
             context=context,
+            rubric=active_rubric,
         )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Gemini analysis failed: {exc}") from exc
@@ -81,7 +116,7 @@ async def analyze_session(
 
     if db.is_enabled():
         try:
-            await db.save_session(result)
+            await db.save_session(result, rubric=active_rubric)
         except Exception:
             pass  # DB persistence is best-effort; don't fail the request
 
