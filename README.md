@@ -27,6 +27,7 @@ Output behaviors to be shown on the dashboard:
 ## Is the student exhibiting any stimming behavior - e.g., scripting (repeating themselves), echoing the other speakers
 1. look for repeating words
 2. identify speakers
+3. Are there any triggers
 
 ## 3 workstreams
 1. Input & Analysis - Kevin/Vik
