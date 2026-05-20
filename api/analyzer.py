@@ -1,10 +1,28 @@
 from __future__ import annotations
 
+import copy
 import os
 from typing import Any, Optional
 
 from google import genai
 from google.genai import types
+
+
+def _inline_refs(schema: dict[str, Any]) -> dict[str, Any]:
+    """Recursively resolve $ref pointers so the Vertex AI SDK (no $defs support) can ingest the schema."""
+    defs = schema.get("$defs", {})
+
+    def _resolve(node: Any) -> Any:
+        if isinstance(node, dict):
+            if "$ref" in node:
+                ref_name = node["$ref"].split("/")[-1]
+                return _resolve(copy.deepcopy(defs[ref_name]))
+            return {k: _resolve(v) for k, v in node.items() if k != "$defs"}
+        if isinstance(node, list):
+            return [_resolve(item) for item in node]
+        return node
+
+    return _resolve(copy.deepcopy(schema))
 
 from models import (
     AnalysisResponse,
@@ -191,7 +209,7 @@ class GeminiABAAnalyzer:
 
         generation_config = types.GenerateContentConfig(
             response_mime_type="application/json",
-            response_schema=GeminiAnalysisSchema,
+            response_schema=_inline_refs(GeminiAnalysisSchema.model_json_schema()),
         )
 
         media_part = types.Part.from_bytes(data=media_bytes, mime_type=mime_type)
