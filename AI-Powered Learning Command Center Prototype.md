@@ -1,5 +1,23 @@
 # AC Pack: AI-Powered Learning Command Center Prototype
 
+## 0. Assignments
+
+**Pratha**
+**Paloma**
+**Zion**
+**Kevin**
+**Rishi**
+
+1. Video/Audio Model Analysis - **Gin**
+
+2. Framework - dashboard, and parts moving around - spectrum - **Mark Dias**
+   - Tie in with Google cloud platform
+   - API for the dashboard
+   - Stub API for whatever technology, use that to plug in the data
+3. Audio/Visual Stimming Criteria Research - **Vikas**
+   - md file to define behavior
+4. API development
+
 ## 1. Product Goal
 
 Build a working prototype dashboard that ingests a short learning-session clip, extracts transcript/audio insights, optionally analyzes video signals, generates session health metrics, and produces a concise intervention summary for the facilitator.
@@ -26,10 +44,10 @@ So that the system can analyze the learning session.
 
 ### Prototype Constraints
 
-* Max clip length: 3–5 minutes
-* Max file size: configurable
-* Store original file path/reference
-* Do not require real-time processing for MVP
+- Max clip length: 3–5 minutes
+- Max file size: configurable
+- Store original file path/reference
+- Do not require real-time processing for MVP
 
 ---
 
@@ -124,13 +142,13 @@ So that I can understand when the learner was engaged, confused, or passive.
 
 ### Example Signals
 
-* “I don’t understand”
-* “Can you repeat that?”
-* “That makes sense”
-* “I’m not sure”
-* Long pauses
-* Repeated instructor explanation
-* Learner asking follow-up questions
+- “I don’t understand”
+- “Can you repeat that?”
+- “That makes sense”
+- “I’m not sure”
+- Long pauses
+- Repeated instructor explanation
+- Learner asking follow-up questions
 
 ---
 
@@ -431,16 +449,16 @@ public class SessionRecommendation
 # Suggested API Endpoints
 
 ```md
-POST   /api/v1/learning-sessions/upload
-POST   /api/v1/learning-sessions/recording
-GET    /api/v1/learning-sessions
-GET    /api/v1/learning-sessions/{id}
-GET    /api/v1/learning-sessions/{id}/transcript
-GET    /api/v1/learning-sessions/{id}/metrics
-GET    /api/v1/learning-sessions/{id}/insights
-GET    /api/v1/learning-sessions/{id}/recommendations
-POST   /api/v1/learning-sessions/{id}/process
-POST   /api/v1/learning-sessions/{id}/reanalyze
+POST /api/v1/learning-sessions/upload
+POST /api/v1/learning-sessions/recording
+GET /api/v1/learning-sessions
+GET /api/v1/learning-sessions/{id}
+GET /api/v1/learning-sessions/{id}/transcript
+GET /api/v1/learning-sessions/{id}/metrics
+GET /api/v1/learning-sessions/{id}/insights
+GET /api/v1/learning-sessions/{id}/recommendations
+POST /api/v1/learning-sessions/{id}/process
+POST /api/v1/learning-sessions/{id}/reanalyze
 ```
 
 ---
@@ -449,21 +467,21 @@ POST   /api/v1/learning-sessions/{id}/reanalyze
 
 ## Top Section
 
-* Session title
-* Upload date
-* Processing status
-* Overall session health score
+- Session title
+- Upload date
+- Processing status
+- Overall session health score
 
 ## Metric Cards
 
-* Engagement
-* Confusion Risk
-* Frustration Risk
-* Participation
-* Energy Level
-* Instructor Talk Ratio
-* Learner Talk Ratio
-* Confidence Level
+- Engagement
+- Confusion Risk
+- Frustration Risk
+- Participation
+- Energy Level
+- Instructor Talk Ratio
+- Learner Talk Ratio
+- Confidence Level
 
 ## Main Panels
 
@@ -498,17 +516,17 @@ POST   /api/v1/learning-sessions/{id}/reanalyze
 
 The prototype is complete when:
 
-* A user can upload or record a short session clip
-* The system creates a session record
-* Audio is extracted or accepted
-* A transcript is generated
-* NLP analysis identifies basic learning signals
-* Core session metrics are calculated
-* Dashboard displays metrics, transcript, insights, and recommendations
-* A session summary is generated
-* Failures are handled gracefully
-* Optional video analysis can be enabled or skipped
-* The prototype can be demoed end-to-end with sample data
+- A user can upload or record a short session clip
+- The system creates a session record
+- Audio is extracted or accepted
+- A transcript is generated
+- NLP analysis identifies basic learning signals
+- Core session metrics are calculated
+- Dashboard displays metrics, transcript, insights, and recommendations
+- A session summary is generated
+- Failures are handled gracefully
+- Optional video analysis can be enabled or skipped
+- The prototype can be demoed end-to-end with sample data
 
 ---
 
