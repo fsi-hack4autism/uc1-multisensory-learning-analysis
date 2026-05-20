@@ -24,6 +24,11 @@ Output behaviors to be shown on the dashboard:
 2. identify speakers
 3. look for words that demonstrate emotions
 
-## Is the student exhibiting any stimming behavior = e.g., scripting (repeating themselves), echoing the other speakers
+## Is the student exhibiting any stimming behavior - e.g., scripting (repeating themselves), echoing the other speakers
 1. look for repeating words
 2. identify speakers
+
+## 3 workstreams
+1. Input & Analysis - Kevin/Vik
+2. Interpretation - Paloma
+3. Display - Pratha/Mark
