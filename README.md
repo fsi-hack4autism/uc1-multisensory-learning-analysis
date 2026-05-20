@@ -13,15 +13,17 @@
 
 
 Output behaviors to be shown on the dashboard:
-1. How well is the student following the context of the conversation
-    a. Transcribe the video
-    b. Identify the speakers
-    c. Identify the context of the full conversation
-    d. How well does each utterance of student follow the conversation
-3. What is the student's emotion during the conversation - e.g., angry, frustrated, happy, etc.
-    a. Speed, Decibel, ans tremble of the voice
-    b. identify speakers
-    c. look for words that demonstrate emotions
-5. Is the student exhibiting any stimming behavior = e.g., scripting (repeating themselves), echoing the other speakers
-    a. look for repeating words
-    b. identify speakers
+## How well is the student following the context of the conversation
+1. Transcribe the video
+2. Identify the speakers
+3. Identify the context of the full conversation
+4. How well does each utterance of student follow the conversation
+   
+## What is the student's emotion during the conversation - e.g., angry, frustrated, happy, etc.
+1. Speed, Decibel, ans tremble of the voice
+2. identify speakers
+3. look for words that demonstrate emotions
+
+## Is the student exhibiting any stimming behavior = e.g., scripting (repeating themselves), echoing the other speakers
+1. look for repeating words
+2. identify speakers
