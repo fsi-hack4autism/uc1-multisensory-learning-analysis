@@ -5,7 +5,7 @@
 ```mermaid
 flowchart TD
     subgraph in["Inputs"]
-        F["MP3 or MP4\n≤ 20 MB"]
+        F["MP3 or MP4\n≤ 100 MB"]
         CTX["context\nOptional therapist notes"]
         RO["rubric_overrides\nOptional JSON — customise\nscoring bands per session"]
     end
