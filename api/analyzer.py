@@ -154,6 +154,7 @@ IMPORTANT GUARDRAILS:
 - This output will be reviewed by a licensed ABA therapist, not used for diagnosis.
 
 Return a full transcript of all speech in the clip, timestamped where possible.
+Label each line with the speaker role: "Therapist:" or "Child:".
 Include overall_session_notes with a 2-3 sentence synthesis.
 Include actionable recommendations for the therapist (3-5 bullet points as strings).
 visual_signals must be an empty list for audio-only input.
