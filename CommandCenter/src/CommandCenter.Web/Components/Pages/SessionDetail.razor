@@ -1,0 +1,1018 @@
+@page "/sessions/{Id:guid}"
+@rendermode InteractiveServer
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@implements IDisposable
+
+<PageTitle>@(_session?.Title ?? "Session Detail") — Learning Command Center</PageTitle>
+
+<div class="container-fluid py-4">
+
+    @* ── Top bar ─────────────────────────────────────────────────────────────── *@
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <a href="/" class="btn btn-sm btn-outline-secondary">◀ Sessions</a>
+        @if (_session?.Status == "Completed")
+        {
+            <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-secondary">↓ Export</button>
+            </div>
+        }
+    </div>
+
+    @if (_loading)
+    {
+        <div class="d-flex justify-content-center py-5">
+            <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading…</span></div>
+        </div>
+    }
+    else if (_error is not null)
+    {
+        <div class="alert alert-danger d-flex align-items-center gap-2">
+            <i class="bi bi-exclamation-triangle-fill fs-5"></i><span>@_error</span>
+        </div>
+    }
+    else if (_session is not null)
+    {
+
+        @* ══════════════════════════════════════════════════════════════════════
+           SCREEN 2 — Processing Status
+           ══════════════════════════════════════════════════════════════════════ *@
+        @if (_session.Status is "Uploaded" or "Processing" or "Transcribing" or "Analyzing")
+        {
+            <div class="row justify-content-center">
+                <div class="col-lg-7">
+
+                    @* Session meta *@
+                    <div class="mb-4">
+                        <h2 class="h4 fw-semibold mb-1">@_session.Title</h2>
+                        <div class="text-muted small">
+                            Uploaded: @_session.CreatedAt.ToString("yyyy-MM-dd  HH:mm") @_session.CreatedAtTimeZone
+                            &nbsp;·&nbsp; <span class="spinner-border spinner-border-sm align-middle me-1" role="status" style="width:.8rem;height:.8rem"></span>
+                            Refreshing every 10 s
+                        </div>
+                    </div>
+
+                    @* Pipeline card *@
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-header bg-transparent fw-semibold d-flex align-items-center gap-2">
+                            <span class="spinner-border spinner-border-sm text-cc-blue" role="status"></span>
+                            Processing pipeline
+                        </div>
+                        <div class="card-body">
+                            @foreach (var (stage, idx) in ProcessingStages.Select((s, i) => (s, i)))
+                            {
+                                var isCurrent = stage.Key == _session.Status;
+                                var isPast    = ProcessingStages.IndexOf(stage) < ProcessingStages.IndexOf(ProcessingStages.First(s => s.Key == _session.Status));
+                                var dotBg     = isPast ? "var(--cc-green)" : isCurrent ? "var(--cc-blue)" : "#CBD5E1";
+                                var labelCls  = isCurrent ? "fw-semibold text-cc-blue" : isPast ? "text-muted" : "text-muted";
+                                var stateText = isPast ? "done" : isCurrent ? "analyzing…" : "waiting";
+                                <div class="d-flex align-items-center mb-3">
+                                    <div class="rounded-circle d-flex align-items-center justify-content-center text-white flex-shrink-0"
+                                         style="width:32px;height:32px;background:@dotBg">
+                                        @if (isPast)       { <i class="bi bi-check2" style="font-size:.85rem"></i> }
+                                        else if (isCurrent){ <div class="spinner-border" style="width:.8rem;height:.8rem;border-width:2px" role="status"></div> }
+                                        else               { <i class="bi bi-circle" style="font-size:.65rem"></i> }
+                                    </div>
+                                    <div class="flex-grow-1 ms-3">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span class="@labelCls">@stage.Label</span>
+                                            <span class="text-muted small">@stateText</span>
+                                        </div>
+                                        @if (isCurrent)
+                                        {
+                                            <div class="progress mt-1" style="height:6px;border-radius:3px">
+                                                <div class="progress-bar bg-cc-blue" style="width:65%;animation:none"></div>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                                @if (idx < ProcessingStages.Count - 1)
+                                {
+                                    <div class="ms-4 ps-1 border-start border-2 mb-1" style="height:12px;border-color:@(isPast ? "var(--cc-green)" : "#CBD5E1")!important"></div>
+                                }
+                            }
+                        </div>
+                    </div>
+
+                    @* What happens next *@
+                    <div class="card border-0 shadow-sm" style="background:#EFF6FF;border-color:#BFDBFE!important">
+                        <div class="card-body">
+                            <div class="fw-semibold mb-2 text-cc-blue">What happens next?</div>
+                            <p class="text-muted small mb-2">Gemini 2.5 Flash is listening for:</p>
+                            <ul class="mb-2 small text-muted ps-3">
+                                <li>Transcript &amp; speaker turns</li>
+                                <li>Stimming patterns &amp; self-regulation signals</li>
+                                <li>Tone, affect &amp; engagement energy</li>
+                                <li>Speech rate &amp; clarification requests</li>
+                            </ul>
+                            <p class="text-muted small mb-0">Results appear automatically when complete.</p>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        }
+
+        @* ══════════════════════════════════════════════════════════════════════
+           SCREEN 8 — Failed State
+           ══════════════════════════════════════════════════════════════════════ *@
+        else if (_session.Status == "Failed")
+        {
+            <div class="row justify-content-center">
+                <div class="col-lg-7">
+                    <div class="mb-4">
+                        <h2 class="h4 fw-semibold mb-1">@_session.Title</h2>
+                        <div class="text-muted small">Uploaded: @_session.CreatedAt.ToString("yyyy-MM-dd  HH:mm") @_session.CreatedAtTimeZone</div>
+                    </div>
+                    <div class="card border-0 shadow-sm border-start border-4" style="border-left-color:var(--cc-red)!important">
+                        <div class="card-body py-4">
+                            <div class="d-flex align-items-start gap-3">
+                                <span style="font-size:2rem;color:var(--cc-red)">✗</span>
+                                <div>
+                                    <div class="fw-semibold fs-5 mb-2" style="color:var(--cc-red)">Processing Failed</div>
+                                    @if (_session.ErrorMessage is not null)
+                                    {
+                                        <div class="text-muted small mb-1"><strong>Stage:</strong> Gemini Audio Analysis</div>
+                                        <div class="text-muted small mb-3">@_session.ErrorMessage</div>
+                                    }
+                                    <div class="d-flex gap-2 flex-wrap">
+                                        <a href="/" class="btn btn-outline-secondary btn-sm">⟳ Re-upload file</a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @* ══════════════════════════════════════════════════════════════════════
+           SCREEN 3 — Main Dashboard (Session Results)
+           ══════════════════════════════════════════════════════════════════════ *@
+        else
+        {
+            @* ── Session Overview header ──────────────────────────────────────── *@
+            <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-3">
+                <div>
+                    <div class="section-label">Session Overview</div>
+                    <h2 class="h4 fw-semibold mb-1">@_session.Title</h2>
+                    <div class="text-muted small">
+                        Uploaded: @_session.CreatedAt.ToString("yyyy-MM-dd")
+                        @if (_session.Duration.HasValue)
+                        {
+                            <span> &middot; @FormatDuration(_session.Duration.Value)</span>
+                        }
+                        <span class="ms-2 badge badge-complete">✓ Complete</span>
+                    </div>
+                </div>
+                @if (_session.Metrics is not null)
+                {
+                    var score = _session.Metrics.SessionHealthScore;
+                    var scoreInt = (int)(score * 100);
+                    var scoreCls  = score >= 0.75 ? "text-cc-green" : score >= 0.50 ? "text-cc-amber" : "text-cc-red";
+                    var barCls    = score >= 0.75 ? "bg-cc-green"   : score >= 0.50 ? "bg-cc-amber"   : "bg-cc-red";
+                    var scoreLabel = score >= 0.75 ? "Good" : score >= 0.50 ? "Moderate" : "Needs Attention";
+                    <div class="card border-0 shadow-sm px-4 py-3" style="min-width:220px">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <span class="section-label mb-0">Session Health</span>
+                            <span class="fw-bold fs-3 @scoreCls lh-1">@scoreInt <span class="fs-6 fw-normal">/ 100</span></span>
+                        </div>
+                        <div class="progress mb-1" style="height:8px;border-radius:4px">
+                            <div class="progress-bar @barCls" style="width:@scoreInt%"></div>
+                        </div>
+                        <div class="d-flex justify-content-between" style="font-size:.72rem;color:#94A3B8">
+                            <span>@scoreLabel</span>
+                            @{
+                                var confPct = (int)(_session.Metrics.MetricsConfidenceLevel * 100);
+                                var confLabel = _session.Metrics.MetricsConfidenceLevel >= 0.8 ? "High" : _session.Metrics.MetricsConfidenceLevel >= 0.5 ? "Medium" : "Low";
+                            }
+                            <span>Confidence: @confLabel</span>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            @* ── Tab nav ──────────────────────────────────────────────────────── *@
+            <ul class="nav nav-tabs mb-4" style="border-bottom:2px solid #E2E8F0">
+                @foreach (var (key, label, icon) in new[]
+                {
+                    ("overview",  "Overview",       "bi-grid-1x2-fill"),
+                    ("timeline",  "Key Moments",    "bi-clock-history"),
+                    ("transcript","Transcript",     "bi-card-text"),
+                    ("visual",    "Visual Signals", "bi-camera-video-fill"),
+                })
+                {
+                    var isActive = _activeTab == key;
+                    <li class="nav-item">
+                        <button class="nav-link d-flex align-items-center gap-2 @(isActive ? "active fw-semibold" : "text-muted")"
+                                style="border:none;border-bottom:@(isActive ? "2px solid var(--cc-blue)" : "2px solid transparent");margin-bottom:-2px;background:none;padding:.5rem 1rem"
+                                @onclick="() => _activeTab = key">
+                            <i class="bi @icon"></i> @label
+                        </button>
+                    </li>
+                }
+            </ul>
+
+            @* ── TAB: Overview (metric cards + summary + interventions) ────────── *@
+            @if (_activeTab == "overview")
+            {
+
+            @* ── Metric Cards row ──────────────────────────────────────────────── *@
+            @if (_session.Metrics is not null)
+            {
+                var m = _session.Metrics;
+                <div class="section-label mt-1 mb-2">Metric Cards</div>
+                <div class="row row-cols-2 row-cols-md-4 g-3 mb-4">
+                    @MetricCard("Engagement",      m.EngagementScore,     "success", "bi-lightning-charge-fill", "Active participation signals")
+                    @MetricCard("Confusion Risk",  m.ConfusionScore,      "danger",  "bi-question-circle-fill",  "Uncertainty signals")
+                    @MetricCard("Frustration Risk",m.FrustrationScore,    "warning", "bi-emoji-frown-fill",      "Difficulty signals")
+                    @NullableMetricCard("Participation", m.ParticipationScore, "success", "bi-person-raised-hand", "Learner involvement")
+                    @NullableMetricCard("Energy Level",  m.EnergyLevel,        "info",    "bi-battery-charging",   "Session momentum")
+                    @NullableMetricCard("Instr. Talk",   m.InstructorTalkRatio,"primary", "bi-mic-fill",           "Instructor talk ratio")
+                    @NullableMetricCard("Learner Talk",  m.LearnerTalkRatio,   "success", "bi-chat-dots-fill",     "Learner talk ratio")
+                    @MetricCard("Comprehension",   m.ComprehensionScore,  "primary", "bi-lightbulb-fill",        "Understanding signals")
+                </div>
+            }
+
+            @* ── Main Panels: Summary + Interventions ─────────────────────────── *@
+            <div class="section-label mb-2">Main Panels</div>
+            <div class="row g-4 mb-4">
+
+                @* Session Summary (left) *@
+                <div class="col-lg-7">
+                    @if (_session.Analysis is not null)
+                    {
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-header bg-transparent fw-semibold d-flex align-items-center gap-2">
+                                <i class="bi bi-stars" style="color:var(--cc-amber)"></i> Session Summary
+                            </div>
+                            <div class="card-body">
+                                @if (_session.Analysis.InsufficientData)
+                                {
+                                    <div class="alert mb-0" style="background:#FEF9C3;border:1px solid #FDE68A">
+                                        <i class="bi bi-exclamation-triangle-fill me-2" style="color:var(--cc-amber)"></i>
+                                        Insufficient data — @_session.Analysis.Summary
+                                    </div>
+                                }
+                                else
+                                {
+                                    <p class="mb-3">@_session.Analysis.Summary</p>
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <div class="section-label">Strengths</div>
+                                            <p class="small mb-0">@_session.Analysis.StrengthsObserved</p>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="section-label">Concerns</div>
+                                            <p class="small mb-0">@_session.Analysis.AreasForImprovement</p>
+                                        </div>
+                                        @if (!string.IsNullOrWhiteSpace(_session.Analysis.NextSteps))
+                                        {
+                                            <div class="col-12">
+                                                <div class="section-label">Next Steps</div>
+                                                <p class="small mb-0">@_session.Analysis.NextSteps</p>
+                                            </div>
+                                        }
+                                    </div>
+                                    <div class="text-muted mt-3" style="font-size:.7rem">
+                                        Model: @_session.Analysis.ModelVersion &nbsp;·&nbsp;
+                                        @_session.Analysis.AnalyzedAt.ToString("MMM d, yyyy HH:mm") @_session.Analysis.AnalyzedAtTimeZone
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                @* Interventions (right) *@
+                <div class="col-lg-5">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-header bg-transparent fw-semibold d-flex align-items-center gap-2">
+                            <i class="bi bi-lightbulb-fill" style="color:var(--cc-amber)"></i> Interventions
+                            @if (_session.Recommendations.Count > 0)
+                            {
+                                <span class="badge badge-waiting fw-normal ms-auto">@_session.Recommendations.Count</span>
+                            }
+                        </div>
+                        @if (_session.Recommendations.Count > 0)
+                        {
+                            <div class="list-group list-group-flush">
+                                @foreach (var r in _session.Recommendations.OrderBy(r => r.Priority))
+                                {
+                                    var (typeIcon, typeHint) = RecommendationTypeHint(r.Type);
+                                    <div class="list-group-item border-0 py-3">
+                                        <div class="d-flex gap-2 align-items-start">
+                                            <div class="rounded-circle d-flex align-items-center justify-content-center text-white flex-shrink-0"
+                                                 style="width:24px;height:24px;background:var(--cc-blue);font-size:.75rem">
+                                                @r.Priority
+                                            </div>
+                                            <div>
+                                                <div class="fw-medium small">@r.Title</div>
+                                                <div class="text-muted small mt-1">@r.Body</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="card-body text-muted text-center py-4 small">No interventions generated.</div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            } @* end overview tab *@
+
+            @* ── TAB: Key Moments Timeline ────────────────────────────────────── *@
+            @if (_activeTab == "timeline")
+            {
+
+            @* ── SCREEN 4: Key Moments Timeline ───────────────────────────────── *@
+            @if (_session.Signals.Count > 0 || (_session.Duration.HasValue && _session.Duration.Value.TotalSeconds > 0))
+            {
+                <div class="section-label mb-2">Key Moments Timeline</div>
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-transparent fw-semibold d-flex align-items-center gap-2">
+                        <i class="bi bi-clock-history text-cc-blue"></i> Key Moments Timeline
+                        @if (_session.Duration.HasValue)
+                        {
+                            <span class="ms-auto text-muted fw-normal small">@FormatDuration(_session!.Duration!.Value)</span>
+                        }
+                    </div>
+                    <div class="card-body">
+
+                        @if (_session.Duration.HasValue && _session.Duration.Value.TotalSeconds > 0)
+                        {
+                            var totalSec = _session!.Duration!.Value.TotalSeconds;
+
+                            @* Transcript bar *@
+                            @if (_session.Transcript.Count > 0)
+                            {
+                                <div class="mb-1 section-label" style="font-size:.65rem">Engagement</div>
+                                <div class="position-relative mb-3" style="height:10px;background:#E2E8F0;border-radius:5px">
+                                    @foreach (var seg in _session.Transcript)
+                                    {
+                                        var left  = (seg.StartTime.TotalSeconds / totalSec * 100).ToString("F2");
+                                        var width = Math.Max(0.5, (seg.EndTime - seg.StartTime).TotalSeconds / totalSec * 100).ToString("F2");
+                                        var isActive = _highlightedSegmentIndex == seg.SequenceIndex;
+                                        <div class="position-absolute"
+                                             style="left:@(left)%;width:@(width)%;top:0;height:100%;background:@(isActive ? "var(--cc-amber)" : "var(--cc-blue)");opacity:@(isActive ? "1" : "0.4");border-radius:3px;cursor:pointer"
+                                             @onclick="() => JumpToSegmentAsync(seg.SequenceIndex)">
+                                        </div>
+                                    }
+                                </div>
+                            }
+
+                            @* Time axis *@
+                            <div class="d-flex justify-content-between text-muted mb-3" style="font-size:.68rem">
+                                <span>0:00</span>
+                                <span>@FormatDuration(TimeSpan.FromSeconds(totalSec / 4))</span>
+                                <span>@FormatDuration(TimeSpan.FromSeconds(totalSec / 2))</span>
+                                <span>@FormatDuration(TimeSpan.FromSeconds(totalSec * 3 / 4))</span>
+                                <span>@FormatDuration(_session.Duration!.Value)</span>
+                            </div>
+                        }
+
+                        @* Signal type filter *@
+                        @if (_session.Signals.Count > 0)
+                        {
+                            <div class="d-flex flex-wrap gap-1 mb-3">
+                                <button class="btn btn-xs @(_timelineFilter is null ? "btn-primary" : "btn-outline-secondary")"
+                                        style="font-size:.72rem;padding:2px 10px"
+                                        @onclick="() => _timelineFilter = null">All</button>
+                                @foreach (var type in SignalTypeKeys)
+                                {
+                                    <button class="btn btn-xs @(_timelineFilter == type ? "btn-primary" : "btn-outline-secondary")"
+                                            style="font-size:.72rem;padding:2px 10px"
+                                            @onclick="() => _timelineFilter = (_timelineFilter == type ? null : type)">
+                                        @FormatSignalType(type)
+                                    </button>
+                                }
+                            </div>
+
+                            @* Event list *@
+                            <div style="max-height:320px;overflow-y:auto">
+                                @foreach (var sig in FilteredSignals)
+                                {
+                                    var (dotColor, dotIcon) = sig.SignalType switch
+                                    {
+                                        "ConfusionIndicator"    => ("var(--cc-amber)",  "bi bi-question-circle-fill"),
+                                        "EngagementIndicator"   => ("var(--cc-green)",  "bi bi-lightning-charge-fill"),
+                                        "FrustrationIndicator"  => ("var(--cc-red)",    "bi bi-emoji-frown-fill"),
+                                        "StimmingIndicator"     => ("var(--cc-blue)",   "bi bi-soundwave"),
+                                        _                       => ("var(--cc-gray)",   "bi bi-circle-fill")
+                                    };
+                                    <div class="d-flex gap-3 mb-3 align-items-start" style="cursor:pointer" @onclick="() => JumpToSignal(sig)">
+                                        <div class="rounded-circle d-flex align-items-center justify-content-center text-white flex-shrink-0 mt-1"
+                                             style="width:28px;height:28px;background:@dotColor">
+                                            <i class="@dotIcon" style="font-size:.65rem"></i>
+                                        </div>
+                                        <div class="flex-grow-1">
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <span class="fw-medium small">@FormatSignalType(sig.SignalType)</span>
+                                                <span class="text-muted small">@FormatDuration(sig.Timestamp)</span>
+                                            </div>
+                                            @if (sig.Notes is not null)
+                                            {
+                                                <div class="text-muted small">@sig.Notes</div>
+                                            }
+                                            @if (sig.SourceEvidence is not null)
+                                            {
+                                                <div class="text-muted small fst-italic mt-1">"@sig.SourceEvidence"</div>
+                                            }
+                                            <div class="mt-1">
+                                                <span class="badge @LevelBadge(sig.Level)" style="font-size:.65rem">@sig.Level confidence</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                                @if (!FilteredSignals.Any())
+                                {
+                                    <div class="text-muted text-center py-3 small">No signals match the selected filter.</div>
+                                }
+                            </div>
+
+                            @* Legend *@
+                            <div class="border-top pt-2 mt-2 d-flex flex-wrap gap-3" style="font-size:.72rem;color:#64748B">
+                                <span>⚠ Concern</span><span>▲ Positive</span><span>★ Stimming</span><span>✓ Milestone</span>
+                            </div>
+                        }
+                        else if (_session.Status == "Completed")
+                        {
+                            <div class="text-muted text-center py-3 small">No learning signals detected.</div>
+                        }
+                    </div>
+                </div>
+            }
+
+            } @* end timeline tab *@
+
+            @* ── TAB: Transcript ──────────────────────────────────────────────── *@
+            @if (_activeTab == "transcript")
+            {
+
+            @* ── SCREEN 5: Transcript Viewer ──────────────────────────────────── *@
+            @if (_session.Transcript.Count > 0)
+            {
+                <div class="section-label mb-2">Transcript</div>
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-transparent d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <span class="fw-semibold d-flex align-items-center gap-2">
+                            <i class="bi bi-card-text text-cc-blue"></i> Transcript
+                            <span class="badge badge-waiting fw-normal">@_session.Transcript.Count segments</span>
+                        </span>
+                        <div class="d-flex gap-2 align-items-center">
+                            <div class="input-group input-group-sm" style="max-width:220px">
+                                <span class="input-group-text">🔍</span>
+                                <input class="form-control" placeholder="Search transcript…"
+                                       @bind="_transcriptSearch" @bind:event="oninput" />
+                                @if (!string.IsNullOrEmpty(_transcriptSearch))
+                                {
+                                    <button class="btn btn-outline-secondary" @onclick="() => _transcriptSearch = string.Empty">✕</button>
+                                }
+                            </div>
+                            <button class="btn btn-sm btn-outline-secondary"
+                                    @onclick="() => _showTranscript = !_showTranscript">
+                                @(_showTranscript ? "▲ Collapse" : "▼ Expand")
+                            </button>
+                        </div>
+                    </div>
+
+                    @if (_showTranscript)
+                    {
+                        <div style="max-height:480px;overflow-y:auto;padding:.75rem 1rem" id="transcript-viewer">
+                            @foreach (var seg in FilteredTranscript)
+                            {
+                                var isHighlighted = _highlightedSegmentIndex == seg.SequenceIndex;
+                                var hasSignal = _session.Signals.Any(s =>
+                                    Math.Abs((s.Timestamp - seg.StartTime).TotalSeconds) < 10);
+                                <div id="seg-@seg.SequenceIndex"
+                                     class="mb-3 p-3 rounded @(isHighlighted ? "border" : "")"
+                                     style="background:@(isHighlighted ? "#FEF9C3" : "#F8FAFC");border-color:@(isHighlighted ? "var(--cc-amber)" : "transparent")!important">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <span class="badge badge-waiting" style="font-size:.65rem">@FormatDuration(seg.StartTime) — @FormatDuration(seg.EndTime)</span>
+                                            @if (seg.SpeakerTag is not null)
+                                            {
+                                                <span class="badge" style="background:#E0E7FF;color:#3730A3;font-size:.65rem">[<b>@seg.SpeakerTag</b>]</span>
+                                            }
+                                        </div>
+                                        @if (hasSignal)
+                                        {
+                                            <span style="font-size:.75rem;color:var(--cc-amber)">⚠</span>
+                                        }
+                                    </div>
+                                    <div class="small">@HighlightText(seg.Text, _transcriptSearch)</div>
+                                </div>
+                            }
+                            @if (!FilteredTranscript.Any())
+                            {
+                                <div class="text-muted text-center py-3 small">No segments match your search.</div>
+                            }
+                        </div>
+                        <div class="card-footer bg-transparent text-muted small">
+                            Showing @FilteredTranscript.Count() of @_session.Transcript.Count segments
+                        </div>
+                    }
+                </div>
+            }
+            else if (_session.Status == "Completed")
+            {
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-body text-muted text-center py-4 small">
+                        <i class="bi bi-card-text fs-4 d-block mb-2"></i>No transcript was generated for this session.
+                    </div>
+                </div>
+            }
+
+            } @* end transcript tab *@
+
+            @* ── TAB: Visual Signals ──────────────────────────────────────────── *@
+            @if (_activeTab == "visual")
+            {
+
+            @* ── SCREEN 6: Visual Signal Panel ────────────────────────────────── *@
+            @if (_session.VideoAnalysis is not null)
+            {
+                <div class="section-label mb-2">Visual Signals <span class="badge badge-processing ms-1" style="font-size:.65rem">Beta</span></div>
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-transparent fw-semibold d-flex align-items-center gap-2">
+                        <i class="bi bi-camera-video-fill text-cc-blue"></i> Visual Signal Analysis
+                    </div>
+                    <div class="card-body">
+                        <div class="alert mb-3 py-2 px-3 small" style="background:#FEF9C3;border:1px solid #FDE68A">
+                            ⚠ These are signals, not diagnoses. All indicators are low-confidence.
+                            Use alongside audio and transcript data.
+                        </div>
+                        @if (_session.VideoAnalysis.Labels.Count > 0)
+                        {
+                            <div class="row g-3">
+                                @foreach (var lbl in _session.VideoAnalysis.Labels.OrderByDescending(l => l.Confidence).Take(4))
+                                {
+                                    <div class="col-sm-6">
+                                        <div class="card border shadow-none h-100" style="background:#F8FAFC">
+                                            <div class="card-body py-2 px-3">
+                                                <div class="fw-medium small mb-1">@lbl.Description</div>
+                                                <div class="progress mb-1" style="height:5px;border-radius:3px">
+                                                    <div class="progress-bar bg-cc-blue" style="width:@((lbl.Confidence * 100).ToString("F0"))%"></div>
+                                                </div>
+                                                <div class="text-muted" style="font-size:.7rem">Confidence: @lbl.Confidence.ToString("P0")</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        <div class="text-muted mt-3" style="font-size:.7rem">
+                            Analyzed @_session.VideoAnalysis.AnalyzedAt.ToString("MMM d, yyyy HH:mm") @_session.VideoAnalysis.AnalyzedAtTimeZone
+                        </div>
+                    </div>
+                </div>
+            }
+            else if (_session.Status == "Completed")
+            {
+                <div class="card border-0 shadow-sm mb-4" style="background:#F8FAFC">
+                    <div class="card-body text-center py-3 small text-muted">
+                        <i class="bi bi-camera-video fs-4 d-block mb-2"></i>
+                        Video analysis not enabled for this session.
+                        <div class="mt-2"><button class="btn btn-sm btn-outline-secondary">Enable video analysis</button></div>
+                    </div>
+                </div>
+            }
+
+            } @* end visual tab *@
+
+        } @* end Completed *@
+    }
+</div>
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private SessionDetailDto? _session;
+    private bool _loading = true;
+    private string? _error;
+    private string _activeTab = "overview";
+    // AC-6.1.3: transcript expanded by default
+    private bool _showTranscript = true;
+    private int? _highlightedSegmentIndex;
+    private string _transcriptSearch = string.Empty;
+    private string? _timelineFilter;
+    private CancellationTokenSource? _pollCts;
+
+    // ── Processing pipeline stage definitions (AC-6.1.5) ────────────────────
+    private sealed record PipelineStage(string Key, string Label);
+    private static readonly List<PipelineStage> ProcessingStages =
+    [
+        new("Uploaded",    "Uploaded"),
+        new("Processing",  "Extracting"),
+        new("Transcribing","Transcribing"),
+        new("Analyzing",   "Analyzing"),
+    ];
+
+    // ── Story 6.2: Timeline markers ────────────────────────────────────────
+    private sealed record TimelineMarker(
+        TimeSpan Timestamp,
+        string Label,
+        string Color,
+        string Icon,
+        int? SegmentIndex);
+
+    private IEnumerable<TimelineMarker> TimelineMarkers
+    {
+        get
+        {
+            if (_session is null) yield break;
+            var total = _session.Duration?.TotalSeconds ?? 0;
+            if (total <= 0) yield break;
+
+            // AC-6.2.1 / AC-6.2.2 / AC-6.2.3: derive markers from signals
+            foreach (var sig in _session.Signals.OrderBy(s => s.Timestamp))
+            {
+                var seg = _session.Transcript
+                    .OrderBy(t => Math.Abs((t.StartTime - sig.Timestamp).TotalSeconds))
+                    .FirstOrDefault();
+
+                var (color, icon, label) = sig.SignalType switch
+                {
+                    "ConfusionIndicator"    => ("danger",  "bi-question-circle-fill", "Confusion"),
+                    "EngagementIndicator"   => ("success", "bi-lightning-charge-fill", "Engagement"),
+                    "AttentionIndicator"    => ("info",    "bi-eye-fill",              "Attention"),
+                    "ComprehensionIndicator"=> ("primary", "bi-lightbulb-fill",        "Comprehension"),
+                    "FrustrationIndicator" => ("warning", "bi-emoji-frown-fill",      "Frustration"),
+                    "StimmingIndicator"    => ("secondary","bi-soundwave",            "Self-Regulation"),
+                    _                      => ("secondary","bi-circle-fill",           sig.SignalType)
+                };
+
+                yield return new TimelineMarker(
+                    sig.Timestamp,
+                    $"{label} · {sig.Level}",
+                    color,
+                    icon,
+                    seg?.SequenceIndex);
+            }
+        }
+    }
+
+    private async Task ClickTimelineMarkerAsync(TimelineMarker marker)
+    {
+        if (marker.SegmentIndex is int idx)
+        {
+            _highlightedSegmentIndex = idx;
+            _showTranscript = true;
+            StateHasChanged();
+            await ScrollToSegmentAsync(idx);
+        }
+    }
+
+    private async Task ScrollToSegmentAsync(int segmentIndex)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("scrollSegmentIntoView", $"seg-{segmentIndex}");
+        }
+        catch { /* non-fatal if JS is unavailable */ }
+    }
+
+    private IEnumerable<LearningSignalDto> FilteredSignals =>
+        (_session?.Signals ?? [])
+            .Where(s => _timelineFilter is null || s.SignalType == _timelineFilter)
+            .OrderBy(s => s.Timestamp);
+
+    private IEnumerable<TranscriptSegmentDto> FilteredTranscript =>
+        (_session?.Transcript ?? [])
+            .Where(s => string.IsNullOrEmpty(_transcriptSearch)
+                || s.Text.Contains(_transcriptSearch, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(s => s.SequenceIndex);
+
+    private IEnumerable<string> SignalTypeKeys =>
+        (_session?.Signals ?? []).Select(s => s.SignalType).Distinct().Order();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+
+        // AC-6.1.5: auto-refresh every 10 s while session is in-progress
+        if (IsInProgress(_session?.Status))
+        {
+            _pollCts = new CancellationTokenSource();
+            _ = PollUntilCompleteAsync(_pollCts.Token);
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            var client = HttpClientFactory.CreateClient("CommandCenterApi");
+            _session = await client.GetFromJsonAsync<SessionDetailDto>($"/api/sessions/{Id}");
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load session: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task PollUntilCompleteAsync(CancellationToken ct)
+    {
+        try
+        {
+            while (!ct.IsCancellationRequested && IsInProgress(_session?.Status))
+            {
+                await Task.Delay(TimeSpan.FromSeconds(10), ct);
+                if (ct.IsCancellationRequested) break;
+
+                var client = HttpClientFactory.CreateClient("CommandCenterApi");
+                var updated = await client.GetFromJsonAsync<SessionDetailDto>($"/api/sessions/{Id}", ct);
+                if (updated is not null)
+                    _session = updated;
+
+                await InvokeAsync(StateHasChanged);
+
+                if (!IsInProgress(_session?.Status))
+                    break;
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            // Non-fatal: log and stop polling
+            _error = $"Auto-refresh error: {ex.Message}";
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private static bool IsInProgress(string? status) =>
+        status is "Uploaded" or "Processing" or "Transcribing" or "Analyzing";
+
+    public void Dispose() => _pollCts?.Cancel();
+
+    private async Task JumpToSegmentAsync(int sequenceIndex)
+    {
+        _highlightedSegmentIndex = sequenceIndex;
+        _showTranscript = true;
+        _activeTab = "transcript";
+        StateHasChanged();
+        await ScrollToSegmentAsync(sequenceIndex);
+    }
+
+    private async Task JumpToSignal(LearningSignalDto sig)
+    {
+        if (_session?.Transcript.Count > 0)
+        {
+            var nearest = _session.Transcript
+                .OrderBy(t => Math.Abs((t.StartTime - sig.Timestamp).TotalSeconds))
+                .FirstOrDefault();
+            if (nearest is not null)
+            {
+                _highlightedSegmentIndex = nearest.SequenceIndex;
+                _showTranscript = true;
+                _activeTab = "transcript";
+                StateHasChanged();
+                await ScrollToSegmentAsync(nearest.SequenceIndex);
+            }
+        }
+    }
+
+    // ── Formatting helpers ────────────────────────────────────────────────────
+
+    private static string FormatDuration(TimeSpan t) =>
+        t.TotalHours >= 1 ? t.ToString(@"h\:mm\:ss") : t.ToString(@"m\:ss");
+
+    private static string FormatSignalType(string type) => type switch
+    {
+        "EngagementIndicator"    => "Engagement",
+        "AttentionIndicator"     => "Attention",
+        "ComprehensionIndicator" => "Comprehension",
+        "FrustrationIndicator"   => "Frustration",
+        "ConfusionIndicator"     => "Confusion",
+        "StimmingIndicator"      => "Self-Regulation",
+        _                        => type
+    };
+
+    private static string FormatRecommendationType(string type) => type switch
+    {
+        "PaceAdjustment"     => "Pace",
+        "TopicReview"        => "Review",
+        "BreakSuggestion"    => "Break",
+        "ResourceReference"  => "Resource",
+        "EngagementStrategy" => "Engagement",
+        _                    => type
+    };
+
+    // AC-7.2.1–7.2.5: icon + hint text for each intervention trigger
+    private static (string Icon, string Hint) RecommendationTypeHint(string type) => type switch
+    {
+        "PaceAdjustment"     => ("bi-speedometer2",          "Addresses confusion risk or comprehension gaps — consider slowing down or checking understanding"),
+        "TopicReview"        => ("bi-arrow-repeat",           "Topic may need revisiting based on observed confusion or comprehension signals"),
+        "BreakSuggestion"    => ("bi-pause-circle",           "Addresses fatigue or sustained frustration — a break or modality change may help"),
+        "ResourceReference"  => ("bi-book",                   "Supplementary material suggested to reinforce learning objectives"),
+        "EngagementStrategy" => ("bi-chat-dots",              "Addresses low participation or engagement drop — try open-ended questions or a different activity"),
+        _                    => ("bi-lightbulb",              "General recommendation based on session analysis")
+    };
+
+    private static RenderFragment HighlightText(string text, string search)
+    {
+        if (string.IsNullOrEmpty(search))
+            return builder => builder.AddContent(0, text);
+
+        return builder =>
+        {
+            int seq = 0;
+            int pos = 0;
+            while (pos < text.Length)
+            {
+                var idx = text.IndexOf(search, pos, StringComparison.OrdinalIgnoreCase);
+                if (idx < 0)
+                {
+                    builder.AddContent(seq++, text[pos..]);
+                    break;
+                }
+                if (idx > pos)
+                    builder.AddContent(seq++, text[pos..idx]);
+
+                builder.OpenElement(seq++, "mark");
+                builder.AddAttribute(seq++, "class", "bg-warning px-0");
+                builder.AddContent(seq++, text.Substring(idx, search.Length));
+                builder.CloseElement();
+                pos = idx + search.Length;
+            }
+        };
+    }
+
+    // ── Badge / colour helpers ────────────────────────────────────────────────
+
+    private static string StatusBadge(string status) => status switch
+    {
+        "Completed"  => "badge-complete",
+        "Failed"     => "badge-failed",
+        "Processing" or "Transcribing" or "Analyzing" => "badge-processing",
+        _ => "badge-waiting"
+    };
+
+    private static string SignalTypeColor(string type) => type switch
+    {
+        "EngagementIndicator"    => "success",
+        "AttentionIndicator"     => "info",
+        "ComprehensionIndicator" => "primary",
+        "FrustrationIndicator"   => "warning",
+        "ConfusionIndicator"     => "danger",
+        "StimmingIndicator"      => "secondary",
+        _                        => "secondary"
+    };
+
+    private static string SignalTypeIcon(string type) => type switch
+    {
+        "EngagementIndicator"    => "bi bi-lightning-charge-fill",
+        "AttentionIndicator"     => "bi bi-eye-fill",
+        "ComprehensionIndicator" => "bi bi-lightbulb-fill",
+        "FrustrationIndicator"   => "bi bi-emoji-frown-fill",
+        "ConfusionIndicator"     => "bi bi-question-circle-fill",
+        "StimmingIndicator"      => "bi bi-soundwave",
+        _                        => "bi bi-circle-fill"
+    };
+
+    private static string SignalTypeBadge(string type) =>
+        $"bg-{SignalTypeColor(type)}{(type is "AttentionIndicator" or "FrustrationIndicator" ? " text-dark" : "")}";
+
+    private static string LevelBadge(string level) => level switch
+    {
+        "High"   => "badge-failed",
+        "Medium" => "badge-processing",
+        "Low"    => "badge-complete",
+        _        => "badge-waiting"
+    };
+
+    private static string ConfidenceBar(string level) => level switch
+    {
+        "High"   => "bg-cc-red",
+        "Medium" => "bg-cc-amber",
+        _        => "bg-cc-green"
+    };
+
+    private static string RecommendationTypeBadge(string type) => type switch
+    {
+        "PaceAdjustment"     => "bg-primary",
+        "TopicReview"        => "bg-info text-dark",
+        "BreakSuggestion"    => "bg-warning text-dark",
+        "ResourceReference"  => "bg-success",
+        "EngagementStrategy" => "bg-secondary",
+        _                    => "bg-light text-dark"
+    };
+
+    // ── Metric card render fragments ──────────────────────────────────────────
+    private RenderFragment NullableMetricCard(string label, double? value, string color, string icon, string tooltip) =>
+        __builder =>
+        {
+            if (value is null)
+            {
+                <div class="col-6 col-md-3">
+                    <div class="card h-100 border-0 shadow-sm">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <i class="bi @icon text-muted"></i>
+                                <span class="text-muted small flex-grow-1">@label</span>
+                                <span class="text-muted small fst-italic">Not Available</span>
+                            </div>
+                            <div class="progress mb-2" style="height:8px;border-radius:4px">
+                                <div class="progress-bar bg-secondary" style="width:0%"></div>
+                            </div>
+                            <div class="text-muted" style="font-size:.7rem">@tooltip</div>
+                        </div>
+                    </div>
+                </div>;
+            }
+            else
+            {
+                @MetricCard(label, value.Value, color, icon, tooltip)
+            }
+        };
+
+    private RenderFragment MetricCard(string label, double value, string color, string icon, string tooltip) =>
+        __builder =>
+        {
+            // Map Bootstrap color names to CC palette classes
+            var (textCls, barCls) = color switch
+            {
+                "success" => ("text-cc-green", "bg-cc-green"),
+                "danger"  => ("text-cc-red",   "bg-cc-red"),
+                "warning" => ("text-cc-amber",  "bg-cc-amber"),
+                "primary" or "info" => ("text-cc-blue", "bg-cc-blue"),
+                _         => ("text-muted",     "bg-secondary")
+            };
+            <div class="col-6 col-md-3">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <i class="bi @icon @textCls"></i>
+                            <span class="text-muted small flex-grow-1">@label</span>
+                            <span class="fw-bold fs-5 @textCls">@(value.ToString("P0"))</span>
+                        </div>
+                        <div class="progress mb-2" style="height:8px;border-radius:4px">
+                            <div class="progress-bar @barCls"
+                                 style="width:@((value * 100).ToString("F0"))%;transition:width .6s ease">
+                            </div>
+                        </div>
+                        <div class="text-muted" style="font-size:.7rem">@tooltip</div>
+                    </div>
+                </div>
+            </div>;
+        };
+
+    // ── Local DTOs ────────────────────────────────────────────────────────────
+    private record SessionDetailDto(
+        Guid Id, string Title, string LearnerName, string? Description,
+        string Status, DateTimeOffset CreatedAt, string CreatedAtTimeZone,
+        DateTimeOffset? ProcessedAt, string? ProcessedAtTimeZone,
+        TimeSpan? Duration, string? ContentType, string? ErrorMessage,
+        List<TranscriptSegmentDto> Transcript,
+        List<LearningSignalDto> Signals,
+        List<RecommendationDto> Recommendations,
+        SessionMetricsDto? Metrics,
+        SessionAnalysisDto? Analysis,
+        VideoAnalysisDto? VideoAnalysis);
+
+    private record TranscriptSegmentDto(
+        int SequenceIndex, TimeSpan StartTime, TimeSpan EndTime,
+        string Text, double Confidence, string? SpeakerTag);
+
+    private record LearningSignalDto(
+        TimeSpan Timestamp, string SignalType, string Level,
+        double ConfidenceScore, string? Notes, string? SourceEvidence);
+
+    private record RecommendationDto(
+        string Title, string Body, string Type, int Priority,
+        DateTimeOffset GeneratedAt, string GeneratedAtTimeZone);
+
+    private record SessionMetricsDto(
+        double EngagementScore, double AttentionScore, double FrustrationScore,
+        double ConfusionScore, double ComprehensionScore,
+        int TotalWordsSpoken, double SpeakingRateWordsPerMinute,
+        int PauseCount, TimeSpan TotalPauseDuration,
+        int QuestionCount, int FillerWordCount,
+        DateTimeOffset ComputedAt, string ComputedAtTimeZone,
+        double SessionHealthScore,
+        double? ParticipationScore, double? EnergyLevel,
+        double? InstructorTalkRatio, double? LearnerTalkRatio,
+        double MetricsConfidenceLevel);
+
+    private record SessionAnalysisDto(
+        string Summary, string KeyTopics, string LearningObjectivesInferred,
+        string StrengthsObserved, string AreasForImprovement,
+        string NextSteps, bool InsufficientData,
+        string ModelVersion, DateTimeOffset AnalyzedAt, string AnalyzedAtTimeZone);
+
+    private record VideoAnalysisDto(
+        List<VideoLabelDto> Labels, List<VideoShotDto> Shots,
+        DateTimeOffset AnalyzedAt, string AnalyzedAtTimeZone);
+
+    private record VideoLabelDto(string Description, double Confidence);
+    private record VideoShotDto(TimeSpan StartTime, TimeSpan EndTime);
+}

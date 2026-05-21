@@ -1,0 +1,201 @@
+using System.Text.Json;
+using CommandCenter.Domain.Entities;
+using CommandCenter.Domain.Interfaces;
+using Google.Cloud.AIPlatform.V1;
+using Wkt = Google.Protobuf.WellKnownTypes;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+
+namespace CommandCenter.Infrastructure.Services;
+
+public sealed class GeminiRecommendationService : IRecommendationService
+{
+    private readonly PredictionServiceClient _client;
+    private readonly string _projectId;
+    private readonly string _location;
+    private readonly string _modelId;
+    private readonly ILogger<GeminiRecommendationService> _logger;
+
+    public GeminiRecommendationService(IConfiguration config, ILogger<GeminiRecommendationService> logger)
+    {
+        _projectId = config["GcpProjectId"] ?? throw new InvalidOperationException("GcpProjectId is required.");
+        _location = config["Gemini:Location"] ?? "us-central1";
+        _modelId = config["Gemini:ModelId"] ?? "gemini-2.0-flash-001";
+        _client = new PredictionServiceClientBuilder
+        {
+            Endpoint = $"{_location}-aiplatform.googleapis.com"
+        }.Build();
+        _logger = logger;
+    }
+
+    public async Task<List<Recommendation>> GenerateAsync(
+        Guid sessionId, SessionAnalysis analysis, SessionMetrics metrics,
+        List<LearningSignal> signals, double? videoConfidence, CancellationToken ct = default)
+    {
+        _logger.LogInformation("Generating recommendations for session {SessionId}", sessionId);
+
+        var endpoint = $"projects/{_projectId}/locations/{_location}/publishers/google/models/{_modelId}";
+
+        // Summarise signal distribution for the prompt
+        var signalSummary = signals
+            .GroupBy(s => s.SignalType.ToString())
+            .Select(g => $"{g.Key}: {g.Count()} ({g.Count(s => s.Level == SignalLevel.High)} high, {g.Count(s => s.Level == SignalLevel.Medium)} medium, {g.Count(s => s.Level == SignalLevel.Low)} low)")
+            .ToList();
+
+        var signalBlock = signalSummary.Count > 0
+            ? string.Join("\n  - ", signalSummary)
+            : "No signals detected";
+
+        // AC-7.2.5: flag low visual confidence so model doesn't over-weight it
+        var visualNote = videoConfidence is < 0.5
+            ? $"NOTE: Visual signal confidence is low ({videoConfidence:P0}). Do NOT base recommendations primarily on visual signals."
+            : videoConfidence.HasValue
+                ? $"Visual signal confidence: {videoConfidence:P0}."
+                : "No visual analysis available.";
+
+        // Approximate health score inline (mirrors SessionMapper logic)
+        var healthScore = Math.Clamp(
+            (metrics.OverallEngagementScore * 0.35)
+            + (metrics.OverallAttentionScore * 0.25)
+            + (metrics.OverallComprehensionScore * 0.25)
+            - (metrics.OverallFrustrationScore * 0.15)
+            - (metrics.OverallConfusionScore * 0.10),
+            0.0, 1.0);
+
+        var prompt = $$"""
+            You are an expert learning coach. Based on the session data below, generate 3-5 actionable, prioritised recommendations for the facilitator.
+
+            SAFETY RULES:
+            - Do NOT make diagnostic, medical, or clinical claims.
+            - Use language such as "consider", "may help", "could support".
+
+            INTERVENTION GUIDANCE (apply when relevant):
+            - AC-7.2.1: If ConfusionIndicator signals are High or count >= 3, recommend slowing down or checking understanding.
+            - AC-7.2.2: If QuestionCount is low (< 2) or learner participation appears limited, recommend asking open-ended questions.
+            - AC-7.2.3: If EngagementIndicator drops mid-session or engagement score < 0.5, recommend changing modality or activity.
+            - AC-7.2.4: If session health score >= 0.75 and signals are mostly positive, acknowledge strengths and suggest continuing current approach.
+            - AC-7.2.5: {{visualNote}}
+
+            ANALYSIS SUMMARY: {{analysis.Summary}}
+            KEY TOPICS: {{analysis.KeyTopics}}
+            STRENGTHS: {{analysis.StrengthsObserved}}
+            AREAS FOR IMPROVEMENT: {{analysis.AreasForImprovement}}
+            NEXT STEPS (from analysis): {{analysis.NextSteps}}
+
+            METRICS:
+              - Session health score: {{healthScore:P0}}
+              - Engagement score: {{metrics.OverallEngagementScore:P0}}
+              - Attention score: {{metrics.OverallAttentionScore:P0}}
+              - Frustration score: {{metrics.OverallFrustrationScore:P0}}
+              - Confusion score: {{metrics.OverallConfusionScore:P0}}
+              - Speaking rate: {{metrics.SpeakingRateWordsPerMinute:N0}} words/min
+              - Pause count: {{metrics.PauseCount}}
+              - Questions asked: {{metrics.QuestionCount}}
+              - Filler words: {{metrics.FillerWordCount}}
+
+            LEARNING SIGNALS:
+              - {{signalBlock}}
+
+            Return ONLY a JSON array (no markdown):
+            [
+              {
+                "title": "Short title",
+                "body": "Detailed actionable recommendation referencing specific session evidence",
+                "type": "PaceAdjustment|TopicReview|BreakSuggestion|ResourceReference|EngagementStrategy",
+                "priority": 1
+              }
+            ]
+            """;
+
+        var request = new PredictRequest
+        {
+            EndpointAsEndpointName = EndpointName.Parse(endpoint),
+            Instances =
+            {
+                Wkt.Value.ForStruct(new Wkt.Struct
+                {
+                    Fields =
+                    {
+                        ["contents"] = Wkt.Value.ForList(
+                            Wkt.Value.ForStruct(new Wkt.Struct
+                            {
+                                Fields =
+                                {
+                                    ["role"] = Wkt.Value.ForString("user"),
+                                    ["parts"] = Wkt.Value.ForList(
+                                        Wkt.Value.ForStruct(new Wkt.Struct { Fields = { ["text"] = Wkt.Value.ForString(prompt) } })
+                                    )
+                                }
+                            })
+                        )
+                    }
+                })
+            }
+        };
+
+        PredictResponse response;
+        try
+        {
+            response = await _client.PredictAsync(request, cancellationToken: ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Gemini recommendation generation failed for session {SessionId}", sessionId);
+            return [];
+        }
+
+        return ParseRecommendations(sessionId, ExtractText(response));
+    }
+
+    private List<Recommendation> ParseRecommendations(Guid sessionId, string rawText)
+    {
+        var recommendations = new List<Recommendation>();
+        try
+        {
+            var start = rawText.IndexOf('[');
+            var end = rawText.LastIndexOf(']');
+            if (start < 0 || end <= start) return recommendations;
+
+            var json = rawText[start..(end + 1)];
+            using var doc = JsonDocument.Parse(json);
+            int priority = 1;
+            foreach (var item in doc.RootElement.EnumerateArray())
+            {
+                if (!System.Enum.TryParse<RecommendationType>(item.GetStringOrDefault("type"), out var recType))
+                    recType = RecommendationType.EngagementStrategy;
+
+                recommendations.Add(new Recommendation
+                {
+                    SessionId = sessionId,
+                    Title = item.GetStringOrDefault("title"),
+                    Body = item.GetStringOrDefault("body"),
+                    Type = recType,
+                    Priority = item.TryGetProperty("priority", out var p) ? p.GetInt32() : priority,
+                    GeneratedAt = DateTimeOffset.UtcNow
+                });
+                priority++;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to parse recommendation response for session {SessionId}", sessionId);
+        }
+        return recommendations;
+    }
+
+    private static string ExtractText(PredictResponse response)
+    {
+        try
+        {
+            var prediction = response.Predictions.FirstOrDefault();
+            if (prediction is null) return string.Empty;
+            var candidates = prediction.StructValue.Fields.GetValueOrDefault("candidates");
+            var content = candidates?.ListValue.Values.FirstOrDefault()
+                ?.StructValue.Fields.GetValueOrDefault("content");
+            var parts = content?.StructValue.Fields.GetValueOrDefault("parts");
+            return parts?.ListValue.Values.FirstOrDefault()
+                ?.StructValue.Fields.GetValueOrDefault("text")?.StringValue ?? string.Empty;
+        }
+        catch { return string.Empty; }
+    }
+}

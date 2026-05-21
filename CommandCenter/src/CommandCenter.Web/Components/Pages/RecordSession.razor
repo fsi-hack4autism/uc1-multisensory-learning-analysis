@@ -1,0 +1,333 @@
+@page "/record"
+@rendermode InteractiveServer
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<PageTitle>Record Session — Learning Command Center</PageTitle>
+
+<div class="container py-5" style="max-width:680px">
+
+    <div class="d-flex align-items-center gap-2 mb-4">
+        <a href="/" class="btn btn-sm btn-outline-secondary">← Back</a>
+        <h4 class="mb-0 fw-semibold">Record Session Clip</h4>
+    </div>
+
+    @if (!_browserSupported)
+    {
+        @* AC-1.2.3 — browser doesn't support media capture *@
+        <div class="alert alert-warning">
+            <i class="bi bi-camera-video-off me-2"></i>
+            <strong>Recording not supported in this browser.</strong>
+            Please <a href="/" class="alert-link">upload a file</a> from the dashboard instead.
+        </div>
+    }
+    else if (_permissionDenied)
+    {
+        @* AC-1.2.3 — user denied permission *@
+        <div class="alert alert-warning">
+            <i class="bi bi-mic-mute-fill me-2"></i>
+            <strong>Microphone/camera access was denied.</strong>
+            Please allow access in your browser settings and refresh, or
+            <a href="/" class="alert-link">upload a file</a> from the dashboard instead.
+        </div>
+        <button class="btn btn-outline-primary" @onclick="RetryPermission">Try again</button>
+    }
+    else
+    {
+        @* AC-1.2.1 — recording UI *@
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body p-4">
+
+                @* Live camera preview *@
+                <div class="recorder-preview-wrap mb-3">
+                    <video id="recorder-preview" class="recorder-preview @(_isRecording ? "" : "d-none")"
+                           autoplay muted playsinline></video>
+                    @if (!_isRecording && _recordedBase64 is null)
+                    {
+                        <div class="recorder-idle-placeholder">
+                            <i class="bi bi-camera-video" style="font-size:3rem;color:var(--cc-gray)"></i>
+                            <p class="text-muted mt-2 mb-0">Click <strong>Start Recording</strong> to begin</p>
+                        </div>
+                    }
+                    @if (_recordedBase64 is not null && !_isRecording)
+                    {
+                        <div class="text-success text-center py-3">
+                            <i class="bi bi-check-circle-fill me-1" style="font-size:1.4rem"></i>
+                            Recording captured — ready to save
+                        </div>
+                    }
+                </div>
+
+                @* Elapsed timer *@
+                @if (_isRecording)
+                {
+                    <div class="text-center mb-3">
+                        <span class="badge bg-danger px-3 py-2" style="font-size:.9rem">
+                            ● REC &nbsp; @TimeSpan.FromSeconds(_elapsed).ToString(@"mm\:ss")
+                        </span>
+                        @if (_elapsed >= MaxWarningSeconds)
+                        {
+                            <div class="text-warning small mt-1">
+                                Approaching @MaxDurationMinutes-minute limit — please finish soon.
+                            </div>
+                        }
+                    </div>
+                }
+
+                @* Controls *@
+                <div class="d-flex gap-2 justify-content-center mb-3">
+                    @if (!_isRecording && _recordedBase64 is null)
+                    {
+                        <button class="btn btn-primary px-4" @onclick="StartRecording">
+                            <i class="bi bi-record-circle me-1"></i> Start Recording
+                        </button>
+                    }
+                    @if (_isRecording)
+                    {
+                        <button class="btn btn-danger px-4" @onclick="StopRecording">
+                            <i class="bi bi-stop-fill me-1"></i> Stop
+                        </button>
+                    }
+                    @if (_recordedBase64 is not null && !_isRecording)
+                    {
+                        <button class="btn btn-outline-secondary" @onclick="Discard">
+                            <i class="bi bi-trash me-1"></i> Discard &amp; Re-record
+                        </button>
+                    }
+                </div>
+
+                <p class="text-muted text-center small mb-0">
+                    Max recording length: @MaxDurationMinutes min
+                </p>
+            </div>
+        </div>
+
+        @* Session details — only shown once a clip is captured *@
+        @if (_recordedBase64 is not null && !_isRecording)
+        {
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-medium">Session title <span class="text-muted fw-normal">(optional)</span></label>
+                        <input class="form-control" @bind="_title" placeholder='e.g. "Math – Tuesday AM"' />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-medium">Learner name</label>
+                        <input class="form-control" @bind="_learner" placeholder="Learner name" />
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label fw-medium">Description <span class="text-muted fw-normal">(optional)</span></label>
+                        <textarea class="form-control" rows="2" @bind="_description"></textarea>
+                    </div>
+
+                    @if (_submitError is not null)
+                    {
+                        <div class="alert alert-danger py-2 mb-3">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>@_submitError
+                        </div>
+                    }
+
+                    @* AC-1.1.5 — processing indicator *@
+                    @if (_submitting)
+                    {
+                        <div class="d-flex align-items-center gap-2 text-primary mb-3">
+                            <span class="spinner-border spinner-border-sm" role="status"></span>
+                            Uploading recording for analysis…
+                        </div>
+                    }
+
+                    <button class="btn btn-primary w-100 py-2 fw-semibold"
+                            @onclick="SubmitRecording"
+                            disabled="@(_submitting)">
+                        Analyze Recording →
+                    </button>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private const int MaxDurationMinutes = 5;
+    private const int MaxDurationSeconds = MaxDurationMinutes * 60;
+    private const int MaxWarningSeconds  = MaxDurationSeconds - 30;
+
+    private bool _browserSupported = true;
+    private bool _permissionDenied;
+    private bool _isRecording;
+    private bool _submitting;
+
+    private string? _recordedBase64;
+    private string  _recordedMimeType = "video/webm";
+    private long    _recordedSize;
+    private int     _elapsed;
+
+    private string _title       = "";
+    private string _learner     = "";
+    private string? _description;
+    private string? _submitError;
+
+    private System.Timers.Timer? _timer;
+    private DotNetObjectReference<RecordSession>? _selfRef;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        _browserSupported = await JS.InvokeAsync<bool>("mediaRecorderInterop.isSupported");
+        StateHasChanged();
+    }
+
+    private async Task StartRecording()
+    {
+        _submitError = null;
+        _permissionDenied = false;
+        _selfRef ??= DotNetObjectReference.Create(this);
+        await JS.InvokeVoidAsync("mediaRecorderInterop.startRecording", _selfRef, "recorder-preview");
+    }
+
+    private async Task StopRecording()
+    {
+        await JS.InvokeVoidAsync("mediaRecorderInterop.stopRecording");
+    }
+
+    private async Task RetryPermission()
+    {
+        _permissionDenied = false;
+        await StartRecording();
+    }
+
+    private async Task Discard()
+    {
+        await JS.InvokeVoidAsync("mediaRecorderInterop.cancelRecording");
+        _recordedBase64 = null;
+        _elapsed = 0;
+        StopTimer();
+    }
+
+    // ── JS callbacks ─────────────────────────────────────────────────────────
+
+    [JSInvokable]
+    public void OnRecordingStarted()
+    {
+        _isRecording = true;
+        _elapsed = 0;
+        _timer = new System.Timers.Timer(1000);
+        _timer.Elapsed += (_, _) =>
+        {
+            _elapsed++;
+            if (_elapsed >= MaxDurationSeconds)
+            {
+                _ = InvokeAsync(async () =>
+                {
+                    await JS.InvokeVoidAsync("mediaRecorderInterop.stopRecording");
+                });
+            }
+            InvokeAsync(StateHasChanged);
+        };
+        _timer.Start();
+        InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public void OnRecordingStopped(string base64, string mimeType, long size)
+    {
+        StopTimer();
+        _isRecording = false;
+        _recordedBase64 = base64;
+        _recordedMimeType = mimeType;
+        _recordedSize = size;
+        InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public void OnRecordingError(string message)
+    {
+        StopTimer();
+        _isRecording = false;
+        if (message == "permission-denied")
+            _permissionDenied = true;
+        else
+            _submitError = $"Recording error: {message}";
+        InvokeAsync(StateHasChanged);
+    }
+
+    // ── Submit ────────────────────────────────────────────────────────────────
+
+    private async Task SubmitRecording()
+    {
+        if (string.IsNullOrWhiteSpace(_learner))
+        {
+            _submitError = "Learner name is required.";
+            return;
+        }
+        if (_recordedBase64 is null)
+        {
+            _submitError = "No recording available.";
+            return;
+        }
+
+        _submitting = true;
+        _submitError = null;
+
+        try
+        {
+            var bytes = Convert.FromBase64String(_recordedBase64);
+            var ext = _recordedMimeType.Contains("mp4") ? ".mp4" : ".webm";
+            var fileName = $"recording_{DateTime.UtcNow:yyyyMMddHHmmss}{ext}";
+            var title = string.IsNullOrWhiteSpace(_title) ? fileName : _title;
+
+            using var content = new MultipartFormDataContent();
+            content.Add(new ByteArrayContent(bytes) { Headers = { ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(_recordedMimeType) } },
+                "file", fileName);
+
+            var url = $"/api/sessions/recording?title={Uri.EscapeDataString(title)}" +
+                      $"&learnerName={Uri.EscapeDataString(_learner)}" +
+                      (_description is not null ? $"&description={Uri.EscapeDataString(_description)}" : "");
+
+            var client = HttpClientFactory.CreateClient("CommandCenterApi");
+            var response = await client.PostAsync(url, content);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync();
+                _submitError = $"Save failed: {body}";
+                return;
+            }
+
+            var created = await response.Content.ReadFromJsonAsync<CreatedSessionDto>();
+            if (created is not null)
+                Nav.NavigateTo($"/sessions/{created.Id}");
+        }
+        catch (Exception ex)
+        {
+            _submitError = $"Submit error: {ex.Message}";
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private void StopTimer()
+    {
+        _timer?.Stop();
+        _timer?.Dispose();
+        _timer = null;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        StopTimer();
+        if (_selfRef is not null)
+        {
+            await JS.InvokeVoidAsync("mediaRecorderInterop.cancelRecording");
+            _selfRef.Dispose();
+        }
+    }
+
+    private record CreatedSessionDto(Guid Id);
+}

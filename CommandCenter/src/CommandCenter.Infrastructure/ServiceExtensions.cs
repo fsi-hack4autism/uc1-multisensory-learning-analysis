@@ -1,0 +1,66 @@
+using CommandCenter.Domain.Interfaces;
+using CommandCenter.Infrastructure.Persistence;
+using CommandCenter.Infrastructure.Repositories;
+using CommandCenter.Infrastructure.Services;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace CommandCenter.Infrastructure;
+
+public static class ServiceExtensions
+{
+    public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration config)
+    {
+        services.AddDbContext<ApplicationDbContext>(options =>
+        {
+            var connectionString = BuildConnectionString(config);
+            options.UseNpgsql(connectionString, npgsql =>
+            {
+                npgsql.EnableRetryOnFailure(maxRetryCount: 5);
+                npgsql.CommandTimeout(60);
+            });
+        });
+
+        services.AddScoped<ILearningSessionRepository, LearningSessionRepository>();
+        services.AddSingleton<IStorageService, GoogleCloudStorageService>();
+        services.AddSingleton<IPubSubService, GooglePubSubService>();
+        services.AddScoped<ISpeechTranscriptionService, GoogleSpeechTranscriptionService>();
+        services.AddScoped<IStimmingAnalysisService, GeminiStimmingAnalysisService>();
+        services.AddScoped<IAnalysisService, GeminiAnalysisService>();
+        services.AddScoped<IRecommendationService, GeminiRecommendationService>();
+        services.AddScoped<IMetricsEngine, MetricsEngine>();
+        services.AddScoped<IVideoIntelligenceService, VideoIntelligenceService>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Builds the Npgsql connection string.
+    /// On Cloud Run: uses Unix socket path via Cloud SQL Auth Proxy.
+    /// In development: uses TCP host/port.
+    /// </summary>
+    private static string BuildConnectionString(IConfiguration config)
+    {
+        var cs = config.GetConnectionString("DefaultConnection");
+        if (!string.IsNullOrWhiteSpace(cs))
+            return cs;
+
+        // Fallback: build from individual config keys
+        var instanceConnectionName = config["CloudSql:InstanceConnectionName"]
+            ?? throw new InvalidOperationException("CloudSql:InstanceConnectionName is required.");
+        var database = config["CloudSql:Database"] ?? "commandcenter";
+        var user = config["CloudSql:Username"] ?? "app";
+        var password = config["CloudSql:Password"]
+            ?? Environment.GetEnvironmentVariable("DB_PASSWORD")
+            ?? throw new InvalidOperationException("DB_PASSWORD environment variable is required.");
+
+        // On Linux (Cloud Run): connect via Unix socket through Cloud SQL Auth Proxy.
+        // On Windows (local dev): Unix sockets are unsupported; use TCP via Cloud SQL Auth Proxy on localhost.
+        if (OperatingSystem.IsWindows())
+            return $"Host=127.0.0.1;Port=5432;Database={database};Username={user};Password={password}";
+
+        var socketPath = $"/cloudsql/{instanceConnectionName}";
+        return $"Host={socketPath};Database={database};Username={user};Password={password}";
+    }
+}

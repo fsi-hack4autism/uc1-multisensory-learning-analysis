@@ -1,0 +1,19 @@
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
+WORKDIR /app
+ENV DOTNET_ENVIRONMENT=Production
+
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+COPY ["src/CommandCenter.Workers/CommandCenter.Workers.csproj", "src/CommandCenter.Workers/"]
+COPY ["src/CommandCenter.Application/CommandCenter.Application.csproj", "src/CommandCenter.Application/"]
+COPY ["src/CommandCenter.Domain/CommandCenter.Domain.csproj", "src/CommandCenter.Domain/"]
+COPY ["src/CommandCenter.Infrastructure/CommandCenter.Infrastructure.csproj", "src/CommandCenter.Infrastructure/"]
+RUN dotnet restore "src/CommandCenter.Workers/CommandCenter.Workers.csproj"
+COPY . .
+WORKDIR "/src/src/CommandCenter.Workers"
+RUN dotnet publish "CommandCenter.Workers.csproj" -c Release -o /app/publish /p:UseAppHost=false
+
+FROM base AS final
+WORKDIR /app
+COPY --from=build /app/publish .
+ENTRYPOINT ["dotnet", "CommandCenter.Workers.dll"]

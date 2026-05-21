@@ -1,0 +1,168 @@
+# Cloud Build CI/CD pipeline for Learning Command Center
+# Builds and deploys Api, Web, and Workers to Cloud Run on every push to main.
+#
+# Required substitutions (set in Cloud Build trigger):
+#   _REGION          - e.g. us-central1
+#   _PROJECT_ID      - GCP project ID
+#   _SQL_INSTANCE    - Cloud SQL instance connection name
+#   _DB_NAME         - PostgreSQL database name (default: commandcenter)
+
+substitutions:
+  _REGION: us-central1
+  _PROJECT_ID: qwiklabs-gcp-01-c8623a386b8c
+  _SQL_INSTANCE: qwiklabs-gcp-01-c8623a386b8c:us-central1:command-center-mvp
+  _DB_NAME: commandcenter
+  _API_SERVICE: command-center-api
+  _WEB_SERVICE: command-center-web
+  _WORKERS_SERVICE: command-center-workers
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+steps:
+  # ── 1. Restore & Test ──────────────────────────────────────────────────────
+  - name: mcr.microsoft.com/dotnet/sdk:10.0
+    id: test
+    dir: CommandCenter
+    entrypoint: dotnet
+    args:
+      - test
+      - tests/CommandCenter.UnitTests/CommandCenter.UnitTests.csproj
+      - --configuration
+      - Release
+      - --logger
+      - trx
+      - --no-restore
+    waitFor: ["-"]
+
+  # ── 2. Build Api image ─────────────────────────────────────────────────────
+  - name: gcr.io/cloud-builders/docker
+    id: build-api
+    dir: CommandCenter
+    args:
+      - build
+      - -f
+      - Dockerfile.Api
+      - -t
+      - $_REGION-docker.pkg.dev/$_PROJECT_ID/command-center/$_API_SERVICE:$SHORT_SHA
+      - -t
+      - $_REGION-docker.pkg.dev/$_PROJECT_ID/command-center/$_API_SERVICE:latest
+      - .
+    waitFor: [test]
+
+  # ── 3. Build Web image ─────────────────────────────────────────────────────
+  - name: gcr.io/cloud-builders/docker
+    id: build-web
+    dir: CommandCenter
+    args:
+      - build
+      - -f
+      - Dockerfile.Web
+      - -t
+      - $_REGION-docker.pkg.dev/$_PROJECT_ID/command-center/$_WEB_SERVICE:$SHORT_SHA
+      - -t
+      - $_REGION-docker.pkg.dev/$_PROJECT_ID/command-center/$_WEB_SERVICE:latest
+      - .
+    waitFor: [test]
+
+  # ── 4. Build Workers image ─────────────────────────────────────────────────
+  - name: gcr.io/cloud-builders/docker
+    id: build-workers
+    dir: CommandCenter
+    args:
+      - build
+      - -f
+      - Dockerfile.Workers
+      - -t
+      - $_REGION-docker.pkg.dev/$_PROJECT_ID/command-center/$_WORKERS_SERVICE:$SHORT_SHA
+      - -t
+      - $_REGION-docker.pkg.dev/$_PROJECT_ID/command-center/$_WORKERS_SERVICE:latest
+      - .
+    waitFor: [test]
+
+  # ── 5. Push images ─────────────────────────────────────────────────────────
+  - name: gcr.io/cloud-builders/docker
+    id: push-api
+    args: [push, --all-tags, $_REGION-docker.pkg.dev/$_PROJECT_ID/command-center/$_API_SERVICE]
+    waitFor: [build-api]
+
+  - name: gcr.io/cloud-builders/docker
+    id: push-web
+    args: [push, --all-tags, $_REGION-docker.pkg.dev/$_PROJECT_ID/command-center/$_WEB_SERVICE]
+    waitFor: [build-web]
+
+  - name: gcr.io/cloud-builders/docker
+    id: push-workers
+    args: [push, --all-tags, $_REGION-docker.pkg.dev/$_PROJECT_ID/command-center/$_WORKERS_SERVICE]
+    waitFor: [build-workers]
+
+  # ── 6. Apply EF Core migrations ────────────────────────────────────────────
+  - name: mcr.microsoft.com/dotnet/sdk:10.0
+    id: migrate
+    dir: CommandCenter
+    entrypoint: dotnet
+    args:
+      - ef
+      - database
+      - update
+      - --project
+      - src/CommandCenter.Infrastructure
+      - --startup-project
+      - src/CommandCenter.Api
+      - --no-build
+    env:
+      - ASPNETCORE_ENVIRONMENT=Production
+    waitFor: [push-api]
+
+  # ── 7. Deploy Api to Cloud Run ─────────────────────────────────────────────
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    id: deploy-api
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - $_API_SERVICE
+      - --image=$_REGION-docker.pkg.dev/$_PROJECT_ID/command-center/$_API_SERVICE:$SHORT_SHA
+      - --region=$_REGION
+      - --platform=managed
+      - --allow-unauthenticated
+      - --add-cloudsql-instances=$_SQL_INSTANCE
+      - --set-env-vars=ASPNETCORE_ENVIRONMENT=Production,GcpProjectId=$_PROJECT_ID
+    waitFor: [migrate]
+
+  # ── 8. Deploy Web to Cloud Run ─────────────────────────────────────────────
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    id: deploy-web
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - $_WEB_SERVICE
+      - --image=$_REGION-docker.pkg.dev/$_PROJECT_ID/command-center/$_WEB_SERVICE:$SHORT_SHA
+      - --region=$_REGION
+      - --platform=managed
+      - --allow-unauthenticated
+      - --set-env-vars=ASPNETCORE_ENVIRONMENT=Production
+    waitFor: [push-web]
+
+  # ── 9. Deploy Workers to Cloud Run ────────────────────────────────────────
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    id: deploy-workers
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - $_WORKERS_SERVICE
+      - --image=$_REGION-docker.pkg.dev/$_PROJECT_ID/command-center/$_WORKERS_SERVICE:$SHORT_SHA
+      - --region=$_REGION
+      - --platform=managed
+      - --no-allow-unauthenticated
+      - --add-cloudsql-instances=$_SQL_INSTANCE
+      - --set-env-vars=ASPNETCORE_ENVIRONMENT=Production,GcpProjectId=$_PROJECT_ID
+      - --min-instances=1
+    waitFor: [push-workers]
+
+images:
+  - $_REGION-docker.pkg.dev/$_PROJECT_ID/command-center/$_API_SERVICE:$SHORT_SHA
+  - $_REGION-docker.pkg.dev/$_PROJECT_ID/command-center/$_WEB_SERVICE:$SHORT_SHA
+  - $_REGION-docker.pkg.dev/$_PROJECT_ID/command-center/$_WORKERS_SERVICE:$SHORT_SHA

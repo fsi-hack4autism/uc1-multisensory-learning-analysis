@@ -1,0 +1,26 @@
+﻿<div class="cc-nav-brand px-3 py-3 d-flex align-items-center gap-2">
+    <span style="font-size:1.3rem;color:#3B82F6">▣</span>
+    <span class="fw-semibold text-white" style="font-size:.95rem;letter-spacing:.01em">Learning Command Center</span>
+</div>
+
+<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+
+<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
+    <nav class="nav flex-column px-2 pb-3">
+        <div class="nav-item">
+            <NavLink class="nav-link" href="/" Match="NavLinkMatch.All">
+                <i class="bi bi-upload me-2"></i> Upload
+            </NavLink>
+        </div>
+        <div class="nav-item">
+            <NavLink class="nav-link" href="/record">
+                <i class="bi bi-record-circle me-2"></i> Record Clip
+            </NavLink>
+        </div>
+        <div class="nav-item">
+            <NavLink class="nav-link" href="/sessions/history">
+                <i class="bi bi-clock-history me-2"></i> Session History
+            </NavLink>
+        </div>
+    </nav>
+</div>

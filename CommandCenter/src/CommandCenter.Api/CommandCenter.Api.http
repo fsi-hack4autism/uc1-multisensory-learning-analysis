@@ -1,0 +1,6 @@
+@CommandCenter.Api_HostAddress = http://localhost:5150
+
+GET {{CommandCenter.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

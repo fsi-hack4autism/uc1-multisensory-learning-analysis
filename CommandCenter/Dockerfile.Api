@@ -1,0 +1,21 @@
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
+WORKDIR /app
+EXPOSE 8080
+ENV ASPNETCORE_URLS=http://+:8080
+ENV ASPNETCORE_ENVIRONMENT=Production
+
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+COPY ["src/CommandCenter.Api/CommandCenter.Api.csproj", "src/CommandCenter.Api/"]
+COPY ["src/CommandCenter.Application/CommandCenter.Application.csproj", "src/CommandCenter.Application/"]
+COPY ["src/CommandCenter.Domain/CommandCenter.Domain.csproj", "src/CommandCenter.Domain/"]
+COPY ["src/CommandCenter.Infrastructure/CommandCenter.Infrastructure.csproj", "src/CommandCenter.Infrastructure/"]
+RUN dotnet restore "src/CommandCenter.Api/CommandCenter.Api.csproj"
+COPY . .
+WORKDIR "/src/src/CommandCenter.Api"
+RUN dotnet publish "CommandCenter.Api.csproj" -c Release -o /app/publish /p:UseAppHost=false
+
+FROM base AS final
+WORKDIR /app
+COPY --from=build /app/publish .
+ENTRYPOINT ["dotnet", "CommandCenter.Api.dll"]

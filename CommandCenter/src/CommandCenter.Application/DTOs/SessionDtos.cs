@@ -1,0 +1,122 @@
+using System;
+using System.Collections.Generic;
+using CommandCenter.Domain.Entities;
+
+namespace CommandCenter.Application.DTOs;
+
+// ── Requests ─────────────────────────────────────────────────────────────────
+
+public sealed record UploadSessionRequest(
+    string Title,
+    string LearnerName,
+    string? Description,
+    string ContentType);
+
+// ── Responses ────────────────────────────────────────────────────────────────
+
+public sealed record SessionSummaryDto(
+    Guid Id,
+    string Title,
+    string LearnerName,
+    string Status,
+    DateTimeOffset CreatedAt,
+    string CreatedAtTimeZone,
+    double? EngagementScore,
+    double? AttentionScore,
+    double? SessionHealthScore,
+    int? SignalCount,
+    string? ErrorMessage);
+
+public sealed record SessionDetailDto(
+    Guid Id,
+    string Title,
+    string LearnerName,
+    string? Description,
+    string Status,
+    DateTimeOffset CreatedAt,
+    string CreatedAtTimeZone,
+    DateTimeOffset? ProcessedAt,
+    string? ProcessedAtTimeZone,
+    TimeSpan? Duration,
+    string? ContentType,
+    string? ErrorMessage,
+    List<TranscriptSegmentDto> Transcript,
+    List<LearningSignalDto> Signals,
+    List<RecommendationDto> Recommendations,
+    SessionMetricsDto? Metrics,
+    SessionAnalysisDto? Analysis,
+    VideoAnalysisDto? VideoAnalysis);
+
+public sealed record TranscriptSegmentDto(
+    int SequenceIndex,
+    TimeSpan StartTime,
+    TimeSpan EndTime,
+    string Text,
+    double Confidence,
+    string? SpeakerTag);
+
+public sealed record LearningSignalDto(
+    TimeSpan Timestamp,
+    string SignalType,
+    string Level,
+    double ConfidenceScore,
+    string? Notes,
+    string? SourceEvidence);
+
+public sealed record RecommendationDto(
+    string Title,
+    string Body,
+    string Type,
+    int Priority,
+    DateTimeOffset GeneratedAt,
+    string GeneratedAtTimeZone);
+
+public sealed record SessionMetricsDto(
+    double EngagementScore,
+    double AttentionScore,
+    double FrustrationScore,
+    double ConfusionScore,
+    double ComprehensionScore,
+    int TotalWordsSpoken,
+    double SpeakingRateWordsPerMinute,
+    int PauseCount,
+    TimeSpan TotalPauseDuration,
+    int QuestionCount,
+    int FillerWordCount,
+    DateTimeOffset ComputedAt,
+    string ComputedAtTimeZone,
+    double SessionHealthScore,
+    double? ParticipationScore,
+    double? EnergyLevel,
+    double? InstructorTalkRatio,
+    double? LearnerTalkRatio,
+    double MetricsConfidenceLevel);
+
+public sealed record SessionAnalysisDto(
+    string Summary,
+    string KeyTopics,
+    string LearningObjectivesInferred,
+    string StrengthsObserved,
+    string AreasForImprovement,
+    string NextSteps,
+    bool InsufficientData,
+    string ModelVersion,
+    DateTimeOffset AnalyzedAt,
+    string AnalyzedAtTimeZone);
+
+public sealed record VideoAnalysisDto(
+    List<VideoLabelDto> Labels,
+    List<VideoShotDto> Shots,
+    DateTimeOffset AnalyzedAt,
+    string AnalyzedAtTimeZone);
+
+public sealed record VideoLabelDto(string Description, double Confidence);
+public sealed record VideoShotDto(TimeSpan StartTime, TimeSpan EndTime);
+
+// ── Paginated list ────────────────────────────────────────────────────────────
+
+public sealed record PagedResult<T>(List<T> Items, int TotalCount, int Page, int PageSize);
+
+// ── Processing event ──────────────────────────────────────────────────────────
+
+public sealed record SessionProcessingMessage(Guid SessionId, string MediaStoragePath, bool IsVideo);
