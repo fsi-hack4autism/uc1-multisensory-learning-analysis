@@ -31,7 +31,7 @@ graph LR
 
 ---
 
-## Video Analysis (Stretch Goal)
+## Video Analysis
 
 ```mermaid
 graph LR
