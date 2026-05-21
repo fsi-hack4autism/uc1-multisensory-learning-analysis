@@ -40,16 +40,17 @@ def fetch_rubric():
     return response.json()
 
 
-def analyze_file(file_path,context="UC1 test session"):
+def analyze_file(file_path,context=None):
     url = f"{API_BASE_URL}/analyze"
+
+    data = {}
+
+    if context:
+        data["context"] = context
 
     with open(file_path,"rb") as file:
         files = {
             "audio": (file_path,file)
-        }
-
-        data = {
-            "context": context
         }
 
         response = requests.post(
@@ -63,7 +64,7 @@ def analyze_file(file_path,context="UC1 test session"):
     return response.json()
 
 
-def safe_analyze_file(file_path,context="UC1 test session"):
+def safe_analyze_file(file_path,context=None):
     """
     Wrapper around analyze_file().
 
@@ -156,7 +157,7 @@ if __name__ == "__main__":
 
     response = safe_analyze_file(
         "stimming.mp3",
-        context="Test session with stimming.mp3 from project root"
+        context=None
     )
 
     if response is None:
