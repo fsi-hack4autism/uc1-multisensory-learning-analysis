@@ -40,8 +40,292 @@ Output behaviors to be shown on the dashboard:
 3. Display - Pratha/Mark
 
 ---
+## Implementation Status
 
-## Setup
+| Feature | Status |
+|---|---|
+| File upload + browser recording | ✅ Done |
+| Transcription with speaker diarization | ✅ Done |
+| NLP signals, sentiment, talk ratio | ✅ Done |
+| ABA analysis (Cloud Run) | ✅ Done |
+| Gemini summary + recommendations | ✅ Done |
+| Session history / management | ✅ Done |
+| Session health score (composite) | ❌ Not computed |
+| Face / gaze / posture detection | ❌ Not implemented |
+| Key moments timeline | ❌ Not implemented |
+| Clickable timeline ↔ transcript | ❌ Not implemented |
+| Explicit audio extraction step | ❌ Not implemented |
+| Real-time status updates (push) | ❌ Not implemented |
+| Cross-session comparison/trends | ❌ Not implemented |
+
+---
+# CommandCenter — AI-Powered Multi-Sensory Learning Analysis
+
+A cloud-native .NET 10 application that records or ingests therapy/education session videos, automatically analyzes them with Google Cloud AI services, and surfaces actionable insights on a real-time dashboard. Built as part of the **FSI Hack4Autism 2026 – Use Case 1** hackathon.
+
+---
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Architecture](#architecture)
+- [Project Structure](#project-structure)
+- [Features](#features)
+- [Prerequisites](#prerequisites)
+- [Configuration](#configuration)
+- [Running Locally](#running-locally)
+- [Running with Docker](#running-with-docker)
+- [Database Migrations](#database-migrations)
+- [API Reference](#api-reference)
+- [Tech Stack](#tech-stack)
+
+---
+
+## Overview
+
+CommandCenter helps therapists and educators **focus on the learner, not the clipboard**. Upload or record a session video and the system will:
+
+1. Transcribe speech and diarize speakers via **Google Speech-to-Text**.
+2. Detect stimming behaviors (scripting, echolalia, repetition) via **Gemini AI**.
+3. Analyze video for visual cues via **Google Video Intelligence**.
+4. Compute session health metrics (engagement, emotion signals, ABA compliance).
+5. Generate ABA-aligned recommendations via **Gemini AI**.
+6. Display everything on a live **Blazor Server** dashboard.
+
+---
+
+## Architecture
+
+```
+┌─────────────────┐    ┌──────────────────┐    ┌──────────────────────┐
+│  CommandCenter  │    │  CommandCenter   │    │  CommandCenter       │
+│      .Web       │───▶│      .Api        │───▶│   .Infrastructure    │
+│  (Blazor Server)│    │  (Minimal API)   │    │  (Google Cloud, EF)  │
+└─────────────────┘    └──────────────────┘    └──────────────────────┘
+                                │                         │
+                                ▼                         ▼
+                       ┌──────────────────┐    ┌──────────────────────┐
+                       │  CommandCenter   │    │  CommandCenter       │
+                       │   .Workers       │    │   .Domain / .App     │
+                       │ (Pub/Sub worker) │    │  (Entities, DTOs)    │
+                       └──────────────────┘    └──────────────────────┘
+```
+
+**Processing pipeline (async):**
+
+```
+Upload ──▶ Cloud Storage ──▶ Pub/Sub ──▶ Workers ──▶ Speech / Video / Gemini AI ──▶ PostgreSQL
+```
+
+---
+
+## Project Structure
+
+```
+CommandCenter/
+├── src/
+│   ├── CommandCenter.Api/           # REST API (Minimal API, .NET 10)
+│   ├── CommandCenter.Web/           # Blazor Server dashboard
+│   ├── CommandCenter.Workers/       # Background Pub/Sub processing worker
+│   ├── CommandCenter.Application/   # Use cases, DTOs, service interfaces
+│   ├── CommandCenter.Domain/        # Entities and domain interfaces
+│   └── CommandCenter.Infrastructure/# EF Core, Google Cloud service adapters
+├── tests/
+│   └── CommandCenter.Tests/
+├── Dockerfile.Api
+├── Dockerfile.Web
+├── Dockerfile.Workers
+├── cloudbuild.yaml
+└── README.md
+```
+
+---
+
+## Features
+
+| Feature | Description |
+|---|---|
+| **Upload or Record** | Upload an existing video/audio file or record directly in the browser |
+| **Speech Transcription** | Speaker-diarized transcript via Google Speech-to-Text |
+| **Stimming Detection** | Scripting, echolalia, and repetition detection via Gemini |
+| **Video Intelligence** | Visual engagement and behavior cues via Google Video Intelligence API |
+| **ABA Analysis** | Applied Behavior Analysis scoring via an optional Cloud Run microservice |
+| **Session Metrics** | Engagement score, emotional signals, response latency, and more |
+| **Recommendations** | AI-generated next steps aligned to ABA principles |
+| **Paginated Dashboard** | Blazor Server UI showing session history and drill-down details |
+| **Async Processing** | Non-blocking pipeline via Google Cloud Pub/Sub |
+
+---
+
+## Prerequisites
+
+- [.NET 10 SDK](https://dotnet.microsoft.com/download)
+- A **GCP project** with the following APIs enabled:
+  ```bash
+  gcloud services enable \
+    speech.googleapis.com \
+    videointelligence.googleapis.com \
+    aiplatform.googleapis.com \
+    storage.googleapis.com \
+    pubsub.googleapis.com \
+    sqladmin.googleapis.com \
+    secretmanager.googleapis.com
+  ```
+- A **PostgreSQL** database (Cloud SQL or local)
+- [Google Cloud SDK](https://cloud.google.com/sdk/docs/install) (`gcloud`)
+- Application Default Credentials configured:
+  ```bash
+  gcloud auth application-default login
+  ```
+
+---
+
+## Configuration
+
+Copy `.env.example` to `.env` and fill in the values, **or** set them as environment variables / user secrets.
+
+### Key settings
+
+| Key | Description |
+|---|---|
+| `GcpProjectId` | GCP project ID |
+| `CloudStorage:BucketName` | GCS bucket for uploaded media |
+| `PubSub:TopicId` | Pub/Sub topic for session processing messages |
+| `PubSub:SubscriptionId` | Pub/Sub subscription consumed by the worker |
+| `ConnectionStrings__DefaultConnection` | PostgreSQL connection string (TCP) |
+| `CloudSql:InstanceConnectionName` | Cloud SQL instance (for Unix socket on Cloud Run) |
+| `CloudSql:DbName` / `CloudSql:DbUser` / `CloudSql:DbPassword` | Cloud SQL credentials |
+| `ApiBaseUrl` | Base URL of the API, consumed by the Web project |
+| `Upload:MaxFileSizeBytes` | Max upload size (default 500 MB) |
+| `Upload:AllowedExtensions` | Comma-separated list, e.g. `.mp4,.webm,.mp3,.wav` |
+| `AbaAnalyzer:Enabled` | `true` to enable the optional ABA Cloud Run service |
+| `AbaAnalyzer:BaseUrl` | URL of the ABA analyzer Cloud Run service |
+
+### User secrets (development)
+
+```bash
+cd src/CommandCenter.Api
+dotnet user-secrets set "GcpProjectId" "my-project"
+dotnet user-secrets set "CloudStorage:BucketName" "my-bucket"
+# ... etc.
+```
+
+---
+
+## Running Locally
+
+### 1. Apply database migrations
+
+```bash
+cd src/CommandCenter.Api
+dotnet ef database update --project ../CommandCenter.Infrastructure
+```
+
+### 2. Start the API
+
+```bash
+cd src/CommandCenter.Api
+dotnet run
+# API available at https://localhost:7001
+# OpenAPI (Scalar) at https://localhost:7001/scalar
+```
+
+### 3. Start the Blazor Web frontend
+
+```bash
+cd src/CommandCenter.Web
+dotnet run
+# Dashboard available at https://localhost:7002
+```
+
+### 4. Start the background worker
+
+```bash
+cd src/CommandCenter.Workers
+dotnet run
+```
+
+---
+
+## Running with Docker
+
+Build and run all three services:
+
+```bash
+# From the CommandCenter/ directory
+
+# API
+docker build -f Dockerfile.Api -t commandcenter-api .
+docker run -p 8080:8080 --env-file .env commandcenter-api
+
+# Web
+docker build -f Dockerfile.Web -t commandcenter-web .
+docker run -p 8081:8080 --env-file .env commandcenter-web
+
+# Workers
+docker build -f Dockerfile.Workers -t commandcenter-workers .
+docker run --env-file .env commandcenter-workers
+```
+
+---
+
+## Database Migrations
+
+Migrations are managed via EF Core in `CommandCenter.Infrastructure`.
+
+```bash
+# Add a new migration
+dotnet ef migrations add <MigrationName> \
+  --project src/CommandCenter.Infrastructure \
+  --startup-project src/CommandCenter.Api
+
+# Apply migrations
+dotnet ef database update \
+  --project src/CommandCenter.Infrastructure \
+  --startup-project src/CommandCenter.Api
+```
+
+---
+
+## API Reference
+
+The API is documented with OpenAPI. When running locally in Development mode, the interactive Scalar UI is available at:
+
+```
+https://localhost:<port>/scalar
+```
+
+### Endpoints summary
+
+| Method | Route | Description |
+|---|---|---|
+| `GET` | `/api/sessions` | List all sessions (paginated via `?page=1&pageSize=20`) |
+| `GET` | `/api/sessions/{id}` | Get a single session with full analysis |
+| `POST` | `/api/sessions/upload` | Upload a video/audio file |
+| `POST` | `/api/sessions/recording` | Submit a browser-recorded blob |
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Runtime | .NET 10 |
+| API | ASP.NET Core Minimal API |
+| Frontend | Blazor Server |
+| ORM | Entity Framework Core + Npgsql |
+| Database | PostgreSQL (Cloud SQL) |
+| Storage | Google Cloud Storage |
+| Messaging | Google Cloud Pub/Sub |
+| Transcription | Google Cloud Speech-to-Text |
+| Video Analysis | Google Cloud Video Intelligence |
+| AI / LLM | Google Gemini (Vertex AI) |
+| Secrets | Google Cloud Secret Manager |
+| Containerization | Docker |
+| CI/CD | Google Cloud Build (`cloudbuild.yaml`) |
+
+---
+## ABA API Setup
 
 ### Prerequisites
 
