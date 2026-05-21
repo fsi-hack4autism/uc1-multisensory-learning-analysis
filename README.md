@@ -45,6 +45,12 @@ Output behaviors to be shown on the dashboard:
 
 ### Prerequisites
 
+<<<<<<< HEAD
+
+=======
+
+> > > > > > > df76cdf980b42d6e3b6ec88a346902fb3e2dafe5
+
 - Python 3.13.0 (see `api/.python-version`; use [pyenv](https://github.com/pyenv/pyenv) or [mise](https://mise.jdx.dev) to auto-switch)
 - A GCP project with billing enabled
 - APIs to enable (run once per project):
@@ -55,6 +61,11 @@ Output behaviors to be shown on the dashboard:
 ### Install Google Cloud SDK
 
 **macOS**
+<<<<<<< HEAD
+
+=======
+
+> > > > > > > df76cdf980b42d6e3b6ec88a346902fb3e2dafe5
 
 ```bash
 brew install --cask google-cloud-sdk
@@ -63,12 +74,22 @@ brew install --cask google-cloud-sdk
 **Windows**
 
 Download and run the installer from https://cloud.google.com/sdk/docs/install#windows, or with winget:
+<<<<<<< HEAD
+
+=======
+
+> > > > > > > df76cdf980b42d6e3b6ec88a346902fb3e2dafe5
 
 ```powershell
 winget install Google.CloudSDK
 ```
 
 **Linux (Debian/Ubuntu)**
+<<<<<<< HEAD
+
+=======
+
+> > > > > > > df76cdf980b42d6e3b6ec88a346902fb3e2dafe5
 
 ```bash
 curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg
