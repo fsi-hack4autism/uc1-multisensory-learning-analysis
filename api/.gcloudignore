@@ -1,0 +1,9 @@
+.gcloudignore
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+sessions.db
+.env
+.env.*
+API.md
