@@ -1,0 +1,22 @@
+﻿using System;
+
+namespace CommandCenter.Domain.Entities;
+
+public class SessionMetrics
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid SessionId { get; set; }
+    public LearningSession Session { get; set; } = null!;
+    public double OverallEngagementScore { get; set; }
+    public double OverallAttentionScore { get; set; }
+    public double OverallFrustrationScore { get; set; }
+    public double OverallConfusionScore { get; set; }
+    public double OverallComprehensionScore { get; set; }
+    public int TotalWordsSpoken { get; set; }
+    public double SpeakingRateWordsPerMinute { get; set; }
+    public int PauseCount { get; set; }
+    public TimeSpan TotalPauseDuration { get; set; }
+    public int QuestionCount { get; set; }
+    public int FillerWordCount { get; set; }
+    public DateTimeOffset ComputedAt { get; set; } = DateTimeOffset.UtcNow;
+}

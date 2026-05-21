@@ -1,0 +1,23 @@
+﻿{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.Hosting.Lifetime": "Information"
+    }
+  },
+  "ConnectionStrings": {
+    "DefaultConnection": "Host=127.0.0.1;Port=5433;Database=commandcenter;Username=fsi-hackation-admin;Password=-udj#z$Ij\\V|4uFG}"
+  },
+  "GcpProjectId": "qwiklabs-gcp-01-c8623a386b8c",
+  "CloudStorage": {
+    "BucketName": "qwiklabs-gcp-01-c8623a386b8c-learning-sessions"
+  },
+  "PubSub": {
+    "TopicId": "session-processing",
+    "SubscriptionId": "session-processing-sub"
+  },
+  "Gemini": {
+    "Location": "us-central1",
+    "ModelId": "gemini-2.0-flash-001"
+  }
+}

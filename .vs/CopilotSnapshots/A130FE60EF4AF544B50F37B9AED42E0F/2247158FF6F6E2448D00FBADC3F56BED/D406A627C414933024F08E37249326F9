@@ -1,0 +1,212 @@
+﻿using System.Text.Json;
+using CommandCenter.Domain.Entities;
+using CommandCenter.Domain.Interfaces;
+using Google.Cloud.AIPlatform.V1;
+using Wkt = Google.Protobuf.WellKnownTypes;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+
+namespace CommandCenter.Infrastructure.Services;
+
+public sealed class GeminiAnalysisService : IAnalysisService
+{
+    private readonly PredictionServiceClient _client;
+    private readonly string _projectId;
+    private readonly string _location;
+    private readonly string _modelId;
+    private readonly ILogger<GeminiAnalysisService> _logger;
+
+    public GeminiAnalysisService(IConfiguration config, ILogger<GeminiAnalysisService> logger)
+    {
+        _projectId = config["GcpProjectId"] ?? throw new InvalidOperationException("GcpProjectId is required.");
+        _location = config["Gemini:Location"] ?? "us-central1";
+        _modelId = config["Gemini:ModelId"] ?? "gemini-2.0-flash-001";
+        _client = new PredictionServiceClientBuilder
+        {
+            Endpoint = $"{_location}-aiplatform.googleapis.com"
+        }.Build();
+        _logger = logger;
+    }
+
+    public async Task<(SessionAnalysis analysis, List<LearningSignal> signals)> AnalyzeTranscriptAsync(
+        Guid sessionId, string fullTranscript, List<TranscriptSegment> segments, CancellationToken ct = default)
+    {
+        _logger.LogInformation("Running Gemini transcript analysis for session {SessionId}", sessionId);
+
+        // AC-7.1.3: guard against transcripts too short to produce meaningful analysis
+        var wordCount = fullTranscript.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+        if (wordCount < 30)
+        {
+            _logger.LogWarning("Session {SessionId} transcript too short ({Words} words) for analysis", sessionId, wordCount);
+            return (InsufficientDataAnalysis(sessionId), []);
+        }
+
+        var endpoint = $"projects/{_projectId}/locations/{_location}/publishers/google/models/{_modelId}";
+
+        var prompt = $$"""
+            You are an educational session analyzer. Analyze the following learning session transcript.
+
+            SAFETY RULES:
+            - Do NOT make diagnostic, medical, or clinical claims.
+            - Engagement, frustration, attention, and confusion signals MUST be labeled as low/medium/high confidence learning indicators only.
+            - Use language such as "may suggest", "appears to indicate", "learning signal observed".
+
+            Return ONLY a JSON object (no markdown) with these fields:
+            {
+              "summary": "2-3 sentence overview of the session",
+              "keyTopics": "comma-separated list of main topics",
+              "learningObjectivesInferred": "inferred learning goals",
+              "strengthsObserved": "what went well — specific facilitator or learner strengths",
+              "areasForImprovement": "specific areas that could be improved",
+              "nextSteps": "2-3 concrete next steps the facilitator should take before the next session",
+              "signals": [
+                {
+                  "timestampSeconds": 0,
+                  "signalType": "EngagementIndicator|FrustrationIndicator|AttentionIndicator|ConfusionIndicator|ComprehensionIndicator",
+                  "level": "Low|Medium|High",
+                  "confidenceScore": 0.0-1.0,
+                  "sourceEvidence": "quote or paraphrase from transcript"
+                }
+              ]
+            }
+
+            TRANSCRIPT:
+            {{fullTranscript}}
+            """;
+
+        var request = new PredictRequest
+        {
+            EndpointAsEndpointName = EndpointName.Parse(endpoint),
+            Instances =
+            {
+                Wkt.Value.ForStruct(new Wkt.Struct
+                {
+                    Fields =
+                    {
+                        ["contents"] = Wkt.Value.ForList(
+                            Wkt.Value.ForStruct(new Wkt.Struct
+                            {
+                                Fields =
+                                {
+                                    ["role"] = Wkt.Value.ForString("user"),
+                                    ["parts"] = Wkt.Value.ForList(
+                                        Wkt.Value.ForStruct(new Wkt.Struct { Fields = { ["text"] = Wkt.Value.ForString(prompt) } })
+                                    )
+                                }
+                            })
+                        )
+                    }
+                })
+            }
+        };
+
+        PredictResponse response;
+        try
+        {
+            response = await _client.PredictAsync(request, cancellationToken: ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Gemini analysis failed for session {SessionId}", sessionId);
+            return (FallbackAnalysis(sessionId), []);
+        }
+
+        var rawText = ExtractText(response);
+        return ParseResponse(sessionId, rawText);
+    }
+
+    private (SessionAnalysis, List<LearningSignal>) ParseResponse(Guid sessionId, string rawText)
+    {
+        try
+        {
+            var json = ExtractJsonObject(rawText);
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            var analysis = new SessionAnalysis
+            {
+                SessionId = sessionId,
+                Summary = root.GetStringOrDefault("summary"),
+                KeyTopics = root.GetStringOrDefault("keyTopics"),
+                LearningObjectivesInferred = root.GetStringOrDefault("learningObjectivesInferred"),
+                StrengthsObserved = root.GetStringOrDefault("strengthsObserved"),
+                AreasForImprovement = root.GetStringOrDefault("areasForImprovement"),
+                ModelVersion = _modelId,
+                AnalyzedAt = DateTimeOffset.UtcNow
+            };
+
+            var signals = new List<LearningSignal>();
+            if (root.TryGetProperty("signals", out var sigArr))
+            {
+                foreach (var sig in sigArr.EnumerateArray())
+                {
+                    if (!System.Enum.TryParse<SignalType>(sig.GetStringOrDefault("signalType"), out var signalType))
+                        continue;
+                    if (!System.Enum.TryParse<SignalLevel>(sig.GetStringOrDefault("level"), out var level))
+                        level = SignalLevel.Low;
+
+                    signals.Add(new LearningSignal
+                    {
+                        SessionId = sessionId,
+                        Timestamp = TimeSpan.FromSeconds(sig.TryGetProperty("timestampSeconds", out var ts) ? ts.GetDouble() : 0),
+                        SignalType = signalType,
+                        Level = level,
+                        ConfidenceScore = sig.TryGetProperty("confidenceScore", out var cs) ? Math.Clamp(cs.GetDouble(), 0, 1) : 0.5,
+                        SourceEvidence = sig.GetStringOrDefault("sourceEvidence"),
+                        Notes = $"{level.ToString().ToLower()} confidence learning signal"
+                    });
+                }
+            }
+
+            return (analysis, signals);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to parse Gemini analysis response for session {SessionId}", sessionId);
+            return (FallbackAnalysis(sessionId), []);
+        }
+    }
+
+    private static SessionAnalysis FallbackAnalysis(Guid sessionId) => new()
+    {
+        SessionId = sessionId,
+        Summary = "Analysis unavailable.",
+        KeyTopics = string.Empty,
+        LearningObjectivesInferred = string.Empty,
+        StrengthsObserved = string.Empty,
+        AreasForImprovement = string.Empty,
+        ModelVersion = "unavailable",
+        AnalyzedAt = DateTimeOffset.UtcNow
+    };
+
+    private static string ExtractText(PredictResponse response)
+    {
+        try
+        {
+            var prediction = response.Predictions.FirstOrDefault();
+            if (prediction is null) return string.Empty;
+            var candidates = prediction.StructValue.Fields.GetValueOrDefault("candidates");
+            var content = candidates?.ListValue.Values.FirstOrDefault()
+                ?.StructValue.Fields.GetValueOrDefault("content");
+            var parts = content?.StructValue.Fields.GetValueOrDefault("parts");
+            return parts?.ListValue.Values.FirstOrDefault()
+                ?.StructValue.Fields.GetValueOrDefault("text")?.StringValue ?? string.Empty;
+        }
+        catch { return string.Empty; }
+    }
+
+    private static string ExtractJsonObject(string text)
+    {
+        var start = text.IndexOf('{');
+        var end = text.LastIndexOf('}');
+        if (start >= 0 && end > start)
+            return text[start..(end + 1)];
+        return "{}";
+    }
+}
+
+internal static class JsonElementExtensions
+{
+    public static string GetStringOrDefault(this JsonElement el, string propertyName) =>
+        el.TryGetProperty(propertyName, out var prop) ? prop.GetString() ?? string.Empty : string.Empty;
+}

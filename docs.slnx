@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/docs/">
+    <File Path="AI-Powered Learning Command Center Prototype.md" />
+    <File Path="Prompt.md" />
+  </Folder>
+  <Project Path="CommandCenter/src/CommandCenter.Api/CommandCenter.Api.csproj" />
+  <Project Path="CommandCenter/src/CommandCenter.Application/CommandCenter.Application.csproj" />
+  <Project Path="CommandCenter/src/CommandCenter.Domain/CommandCenter.Domain.csproj" />
+  <Project Path="CommandCenter/src/CommandCenter.Infrastructure/CommandCenter.Infrastructure.csproj" />
+  <Project Path="CommandCenter/src/CommandCenter.Web/CommandCenter.Web.csproj" />
+  <Project Path="CommandCenter/src/CommandCenter.Workers/CommandCenter.Workers.csproj" />
+</Solution>

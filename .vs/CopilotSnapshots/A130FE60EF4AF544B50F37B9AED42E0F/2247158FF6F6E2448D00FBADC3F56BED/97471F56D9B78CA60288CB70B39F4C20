@@ -1,0 +1,260 @@
+﻿@page "/"
+@rendermode InteractiveServer
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager Nav
+
+<PageTitle>Upload Session — Learning Command Center</PageTitle>
+
+<div class="container py-5" style="max-width:680px">
+
+    @* ── Upload Drop Zone ────────────────────────────────────────────────── *@
+    <div class="upload-dropzone p-5 text-center mb-4 @(_dragOver ? "drag-over" : "")"
+         @ondragover:preventDefault @ondragover="() => _dragOver = true"
+         @ondragleave="() => _dragOver = false"
+         @ondrop:preventDefault @ondrop="HandleDrop">
+        <div class="mb-3" style="font-size:2.5rem;color:#94A3B8">⬆</div>
+        <h5 class="fw-semibold mb-1">Upload Session Clip</h5>
+        <p class="text-muted small mb-3">Drag &amp; drop your file here, or</p>
+        <label class="btn btn-primary px-4">
+            Browse files
+            <InputFile style="display:none" OnChange="FileSelected" accept="audio/*,video/*" />
+        </label>
+        <div class="text-muted mt-3" style="font-size:.78rem">
+            Supported: .mp4 &nbsp;·&nbsp; .mov &nbsp;·&nbsp; .webm &nbsp;·&nbsp; .mp3 &nbsp;·&nbsp; .wav<br />
+            Max length: 5 min &nbsp;·&nbsp; Max size: 500 MB
+        </div>
+        @if (_selectedFile is not null)
+        {
+            <div class="mt-3 d-inline-flex align-items-center gap-2 badge bg-light text-dark border px-3 py-2" style="font-size:.82rem">
+                <i class="bi bi-file-earmark-music text-primary"></i>
+                @_selectedFile.Name
+                <span class="text-muted">(@FormatFileSize(_selectedFile.Size))</span>
+            </div>
+        }
+    </div>
+
+    @* ── Session Details + Submit ────────────────────────────────────────── *@
+    <div class="card border-0 shadow-sm mb-5">
+        <div class="card-body p-4">
+            <div class="mb-3">
+                <label class="form-label fw-medium">Session title <span class="text-muted fw-normal">(optional)</span></label>
+                <input class="form-control" @bind="_uploadTitle" placeholder='e.g. "Math – Tuesday AM"' />
+            </div>
+            <div class="mb-3">
+                <label class="form-label fw-medium">Learner name</label>
+                <input class="form-control" @bind="_uploadLearner" placeholder="Learner name" />
+            </div>
+            <div class="mb-4">
+                <label class="form-label fw-medium">Description <span class="text-muted fw-normal">(optional)</span></label>
+                <textarea class="form-control" rows="2" @bind="_uploadDesc"></textarea>
+            </div>
+
+            @if (_uploadError is not null)
+            {
+                <div class="alert alert-danger py-2 mb-3">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>@_uploadError
+                </div>
+            }
+
+            <button class="btn btn-primary w-100 py-2 fw-semibold" @onclick="SubmitUpload"
+                    disabled="@(_uploading || _selectedFile is null)">
+                @if (_uploading)
+                {
+                    <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                }
+                Analyze Session →
+            </button>
+        </div>
+    </div>
+
+    @* ── Recent Sessions ─────────────────────────────────────────────────── *@
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <span class="section-label">Recent Sessions</span>
+        <a href="/sessions/history" class="small text-cc-blue text-decoration-none">View all →</a>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="d-flex justify-content-center py-4">
+            <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading…</span></div>
+        </div>
+    }
+    else if (_error is not null)
+    {
+        <div class="alert alert-danger py-2 small">@_error</div>
+    }
+    else if (_sessions.Count == 0)
+    {
+        <p class="text-muted small text-center py-3">No sessions yet. Upload your first clip above.</p>
+    }
+    else
+    {
+        <div class="card border-0 shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0" style="font-size:.875rem">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Session</th>
+                            <th>Date</th>
+                            <th>Status</th>
+                            <th>Health</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var s in _sessions)
+                        {
+                            <tr>
+                                <td class="fw-medium">@s.Title</td>
+                                <td class="text-muted">@s.CreatedAt.ToString("yyyy-MM-dd")</td>
+                                <td>@StatusBadge(s)</td>
+                                <td>
+                                    @if (s.SessionHealthScore.HasValue)
+                                    {
+                                        var score = (int)(s.SessionHealthScore.Value * 100);
+                                        var cls = score >= 75 ? "text-cc-green" : score >= 50 ? "text-cc-amber" : "text-cc-red";
+                                        <span class="fw-semibold @cls">@score</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">—</span>
+                                    }
+                                </td>
+                                <td>
+                                    <a href="/sessions/@s.Id" class="btn btn-sm btn-outline-primary">▶</a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<SessionSummaryDto> _sessions = [];
+    private bool _loading = true;
+    private string? _error;
+    private bool _dragOver;
+
+    private bool _uploading;
+    private string _uploadTitle = "";
+    private string _uploadLearner = "";
+    private string? _uploadDesc;
+    private IBrowserFile? _selectedFile;
+    private string? _uploadError;
+
+    protected override async Task OnInitializedAsync() => await LoadSessionsAsync();
+
+    private async Task LoadSessionsAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            var client = HttpClientFactory.CreateClient("CommandCenterApi");
+            var result = await client.GetFromJsonAsync<PagedResult<SessionSummaryDto>>(
+                "/api/sessions?page=1&pageSize=5");
+            _sessions = result?.Items ?? [];
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load sessions: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void FileSelected(InputFileChangeEventArgs e)
+    {
+        _selectedFile = e.File;
+        _dragOver = false;
+    }
+
+    private void HandleDrop(DragEventArgs e)
+    {
+        _dragOver = false;
+        // File from drag-drop is handled via browser InputFile; drag-over styling only
+    }
+
+    private async Task SubmitUpload()
+    {
+        if (string.IsNullOrWhiteSpace(_uploadLearner) || _selectedFile is null)
+        {
+            _uploadError = "Learner name and a file are required.";
+            return;
+        }
+
+        _uploading = true;
+        _uploadError = null;
+        try
+        {
+            var client = HttpClientFactory.CreateClient("CommandCenterApi");
+            using var content = new MultipartFormDataContent();
+            using var stream = _selectedFile.OpenReadStream(maxAllowedSize: 500 * 1024 * 1024);
+            content.Add(new StreamContent(stream), "file", _selectedFile.Name);
+
+            var title = string.IsNullOrWhiteSpace(_uploadTitle) ? _selectedFile.Name : _uploadTitle;
+            var url = $"/api/sessions/upload?title={Uri.EscapeDataString(title)}" +
+                      $"&learnerName={Uri.EscapeDataString(_uploadLearner)}" +
+                      (_uploadDesc is not null ? $"&description={Uri.EscapeDataString(_uploadDesc)}" : "");
+            var response = await client.PostAsync(url, content);
+            if (!response.IsSuccessStatusCode)
+            {
+                _uploadError = $"Upload failed: {response.StatusCode}";
+                return;
+            }
+
+            var created = await response.Content.ReadFromJsonAsync<CreatedSessionDto>();
+            if (created is not null)
+                Nav.NavigateTo($"/sessions/{created.Id}");
+            else
+            {
+                _selectedFile = null;
+                _uploadTitle = "";
+                _uploadLearner = "";
+                await LoadSessionsAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            _uploadError = $"Upload error: {ex.Message}";
+        }
+        finally
+        {
+            _uploading = false;
+        }
+    }
+
+    private static RenderFragment StatusBadge(SessionSummaryDto s) => __builder =>
+    {
+        var (cls, label) = s.Status switch
+        {
+            "Completed"  => ("badge-complete", "✓ Complete"),
+            "Failed"     => ("badge-failed",   "✗ Failed"),
+            "Processing" or "Transcribing" or "Analyzing" or "Uploaded"
+                         => ("badge-processing", s.Status + "…"),
+            _            => ("badge-waiting", s.Status)
+        };
+        __builder.OpenElement(0, "span");
+        __builder.AddAttribute(1, "class", $"badge {cls}");
+        __builder.AddContent(2, label);
+        __builder.CloseElement();
+    };
+
+    private static string FormatFileSize(long bytes) =>
+        bytes switch { > 1_048_576 => $"{bytes / 1_048_576.0:F1} MB", > 1024 => $"{bytes / 1024.0:F0} KB", _ => $"{bytes} B" };
+
+    private record SessionSummaryDto(
+        Guid Id, string Title, string LearnerName, string Status,
+        DateTimeOffset CreatedAt, string CreatedAtTimeZone,
+        double? EngagementScore, double? AttentionScore,
+        double? SessionHealthScore, int? SignalCount,
+        string? ErrorMessage);
+
+    private record PagedResult<T>(List<T> Items, int TotalCount, int Page, int PageSize);
+    private record CreatedSessionDto(Guid Id);
+}

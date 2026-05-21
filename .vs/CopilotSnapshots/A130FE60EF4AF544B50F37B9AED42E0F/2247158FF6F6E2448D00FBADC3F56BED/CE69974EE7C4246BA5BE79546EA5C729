@@ -1,0 +1,19 @@
+﻿using System;
+
+namespace CommandCenter.Domain.Entities;
+
+public class SessionAnalysis
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid SessionId { get; set; }
+    public LearningSession Session { get; set; } = null!;
+    public string Summary { get; set; } = string.Empty;
+    public string KeyTopics { get; set; } = string.Empty;
+    public string LearningObjectivesInferred { get; set; } = string.Empty;
+    public string StrengthsObserved { get; set; } = string.Empty;
+    public string AreasForImprovement { get; set; } = string.Empty;
+    public string NextSteps { get; set; } = string.Empty;
+    public bool InsufficientData { get; set; } = false;
+    public string ModelVersion { get; set; } = string.Empty;
+    public DateTimeOffset AnalyzedAt { get; set; } = DateTimeOffset.UtcNow;
+}

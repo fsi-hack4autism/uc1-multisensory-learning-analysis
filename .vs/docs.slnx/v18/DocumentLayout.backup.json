@@ -1,0 +1,371 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "D:\\Source\\uc1-multisensory-learning-analysis-dev\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{F390044A-2DF5-AD8B-3D3F-B606B0A41F6B}|CommandCenter\\src\\CommandCenter.Web\\CommandCenter.Web.csproj|d:\\source\\uc1-multisensory-learning-analysis-dev\\commandcenter\\src\\commandcenter.web\\components\\pages\\recordsession.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{F390044A-2DF5-AD8B-3D3F-B606B0A41F6B}|CommandCenter\\src\\CommandCenter.Web\\CommandCenter.Web.csproj|solutionrelative:commandcenter\\src\\commandcenter.web\\components\\pages\\recordsession.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\diasm\\AppData\\Local\\Temp\\VisualStudio\\copilot-vs\\plan-4d8dfa34-ffa7-4ea7-8c7b-a84009139ec5.md||{EFC0BB08-EA7D-40C6-A696-C870411A895B}|MarkdownSecurePreview"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Source\\uc1-multisensory-learning-analysis-dev\\plan-72bb27de-51ba-4fa4-a4d0-4cd0c32a2772.md||{EFC0BB08-EA7D-40C6-A696-C870411A895B}|MarkdownSecurePreview",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:plan-72bb27de-51ba-4fa4-a4d0-4cd0c32a2772.md||{EFC0BB08-EA7D-40C6-A696-C870411A895B}|MarkdownSecurePreview"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{F313D4F8-B4DD-478E-83CA-B5BD22F593D8}|NewFolder1{F313D4F8-B4DD-478E-83CA-B5BD22F593D8}|D:\\Source\\uc1-multisensory-learning-analysis-dev\\AI-Powered Learning Command Center Prototype.md||{EFC0BB08-EA7D-40C6-A696-C870411A895B}",
+      "RelativeMoniker": "D:0:0:{F313D4F8-B4DD-478E-83CA-B5BD22F593D8}|NewFolder1{F313D4F8-B4DD-478E-83CA-B5BD22F593D8}|solutionrelative:AI-Powered Learning Command Center Prototype.md||{EFC0BB08-EA7D-40C6-A696-C870411A895B}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{F313D4F8-B4DD-478E-83CA-B5BD22F593D8}|NewFolder1{F313D4F8-B4DD-478E-83CA-B5BD22F593D8}|D:\\Source\\uc1-multisensory-learning-analysis-dev\\Prompt.md||{EFC0BB08-EA7D-40C6-A696-C870411A895B}",
+      "RelativeMoniker": "D:0:0:{F313D4F8-B4DD-478E-83CA-B5BD22F593D8}|NewFolder1{F313D4F8-B4DD-478E-83CA-B5BD22F593D8}|solutionrelative:Prompt.md||{EFC0BB08-EA7D-40C6-A696-C870411A895B}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{4D34BCD1-B7AC-FD37-4358-AC8552721723}|CommandCenter\\src\\CommandCenter.Api\\CommandCenter.Api.csproj|d:\\source\\uc1-multisensory-learning-analysis-dev\\commandcenter\\src\\commandcenter.api\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{4D34BCD1-B7AC-FD37-4358-AC8552721723}|CommandCenter\\src\\CommandCenter.Api\\CommandCenter.Api.csproj|solutionrelative:commandcenter\\src\\commandcenter.api\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{4D34BCD1-B7AC-FD37-4358-AC8552721723}|CommandCenter\\src\\CommandCenter.Api\\CommandCenter.Api.csproj|d:\\source\\uc1-multisensory-learning-analysis-dev\\commandcenter\\src\\commandcenter.api\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{4D34BCD1-B7AC-FD37-4358-AC8552721723}|CommandCenter\\src\\CommandCenter.Api\\CommandCenter.Api.csproj|solutionrelative:commandcenter\\src\\commandcenter.api\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{F390044A-2DF5-AD8B-3D3F-B606B0A41F6B}|CommandCenter\\src\\CommandCenter.Web\\CommandCenter.Web.csproj|d:\\source\\uc1-multisensory-learning-analysis-dev\\commandcenter\\src\\commandcenter.web\\components\\app.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{F390044A-2DF5-AD8B-3D3F-B606B0A41F6B}|CommandCenter\\src\\CommandCenter.Web\\CommandCenter.Web.csproj|solutionrelative:commandcenter\\src\\commandcenter.web\\components\\app.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{F390044A-2DF5-AD8B-3D3F-B606B0A41F6B}|CommandCenter\\src\\CommandCenter.Web\\CommandCenter.Web.csproj|d:\\source\\uc1-multisensory-learning-analysis-dev\\commandcenter\\src\\commandcenter.web\\wwwroot\\app.css||{A5401142-F49D-43DB-90B1-F57BA349E55C}",
+      "RelativeMoniker": "D:0:0:{F390044A-2DF5-AD8B-3D3F-B606B0A41F6B}|CommandCenter\\src\\CommandCenter.Web\\CommandCenter.Web.csproj|solutionrelative:commandcenter\\src\\commandcenter.web\\wwwroot\\app.css||{A5401142-F49D-43DB-90B1-F57BA349E55C}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{9FD128B4-5ADC-D2A2-7815-DCA4209E12E7}|CommandCenter\\src\\CommandCenter.Domain\\CommandCenter.Domain.csproj|d:\\source\\uc1-multisensory-learning-analysis-dev\\commandcenter\\src\\commandcenter.domain\\entities\\sessionmetrics.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{9FD128B4-5ADC-D2A2-7815-DCA4209E12E7}|CommandCenter\\src\\CommandCenter.Domain\\CommandCenter.Domain.csproj|solutionrelative:commandcenter\\src\\commandcenter.domain\\entities\\sessionmetrics.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{250BBF86-5101-DB36-0680-667ED947F679}|CommandCenter\\src\\CommandCenter.Infrastructure\\CommandCenter.Infrastructure.csproj|d:\\source\\uc1-multisensory-learning-analysis-dev\\commandcenter\\src\\commandcenter.infrastructure\\services\\metricsengine.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{250BBF86-5101-DB36-0680-667ED947F679}|CommandCenter\\src\\CommandCenter.Infrastructure\\CommandCenter.Infrastructure.csproj|solutionrelative:commandcenter\\src\\commandcenter.infrastructure\\services\\metricsengine.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{EDA740BB-C42F-6EC9-A391-494AB139865A}|CommandCenter\\src\\CommandCenter.Application\\CommandCenter.Application.csproj|d:\\source\\uc1-multisensory-learning-analysis-dev\\commandcenter\\src\\commandcenter.application\\dtos\\sessiondtos.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{EDA740BB-C42F-6EC9-A391-494AB139865A}|CommandCenter\\src\\CommandCenter.Application\\CommandCenter.Application.csproj|solutionrelative:commandcenter\\src\\commandcenter.application\\dtos\\sessiondtos.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{EDA740BB-C42F-6EC9-A391-494AB139865A}|CommandCenter\\src\\CommandCenter.Application\\CommandCenter.Application.csproj|d:\\source\\uc1-multisensory-learning-analysis-dev\\commandcenter\\src\\commandcenter.application\\mapping\\sessionmapper.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{EDA740BB-C42F-6EC9-A391-494AB139865A}|CommandCenter\\src\\CommandCenter.Application\\CommandCenter.Application.csproj|solutionrelative:commandcenter\\src\\commandcenter.application\\mapping\\sessionmapper.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{F390044A-2DF5-AD8B-3D3F-B606B0A41F6B}|CommandCenter\\src\\CommandCenter.Web\\CommandCenter.Web.csproj|d:\\source\\uc1-multisensory-learning-analysis-dev\\commandcenter\\src\\commandcenter.web\\components\\pages\\sessiondetail.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{F390044A-2DF5-AD8B-3D3F-B606B0A41F6B}|CommandCenter\\src\\CommandCenter.Web\\CommandCenter.Web.csproj|solutionrelative:commandcenter\\src\\commandcenter.web\\components\\pages\\sessiondetail.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 7,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "AI-Powered Learning Command Center Prototype.md",
+              "DocumentMoniker": "D:\\Source\\uc1-multisensory-learning-analysis-dev\\AI-Powered Learning Command Center Prototype.md",
+              "RelativeDocumentMoniker": "AI-Powered Learning Command Center Prototype.md",
+              "ToolTip": "D:\\Source\\uc1-multisensory-learning-analysis-dev\\AI-Powered Learning Command Center Prototype.md",
+              "RelativeToolTip": "AI-Powered Learning Command Center Prototype.md",
+              "ViewState": "AgIAAO4AAAAAAAAAAADwvw0BAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001818|",
+              "WhenOpened": "2026-05-21T00:46:02.824Z",
+              "IsPinned": true,
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "Prompt.md",
+              "DocumentMoniker": "D:\\Source\\uc1-multisensory-learning-analysis-dev\\Prompt.md",
+              "RelativeDocumentMoniker": "Prompt.md",
+              "ToolTip": "D:\\Source\\uc1-multisensory-learning-analysis-dev\\Prompt.md",
+              "RelativeToolTip": "Prompt.md",
+              "ViewState": "AgIAAAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001818|",
+              "WhenOpened": "2026-05-21T00:10:09.084Z",
+              "IsPinned": true,
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:128:0:{1fc202d4-d401-403c-9834-5b218574bb67}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{57d563b6-44a5-47df-85be-f4199ad6b651}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{aa2115a1-9712-457b-9047-dbb71ca2cdd2}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:128:0:{116d2292-e37d-41cd-a077-ebacac4c8cc4}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:129:0:{116d2292-e37d-41cd-a077-ebacac4c8cc4}"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "RecordSession.razor",
+              "DocumentMoniker": "D:\\Source\\uc1-multisensory-learning-analysis-dev\\CommandCenter\\src\\CommandCenter.Web\\Components\\Pages\\RecordSession.razor",
+              "RelativeDocumentMoniker": "CommandCenter\\src\\CommandCenter.Web\\Components\\Pages\\RecordSession.razor",
+              "ToolTip": "D:\\Source\\uc1-multisensory-learning-analysis-dev\\CommandCenter\\src\\CommandCenter.Web\\Components\\Pages\\RecordSession.razor",
+              "RelativeToolTip": "CommandCenter\\src\\CommandCenter.Web\\Components\\Pages\\RecordSession.razor",
+              "ViewState": "AgIAAKYAAAAAAAAAAAAUwLoAAAAIAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000759|",
+              "WhenOpened": "2026-05-21T03:09:19.831Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 13,
+              "Title": "SessionDetail.razor",
+              "DocumentMoniker": "D:\\Source\\uc1-multisensory-learning-analysis-dev\\CommandCenter\\src\\CommandCenter.Web\\Components\\Pages\\SessionDetail.razor",
+              "RelativeDocumentMoniker": "CommandCenter\\src\\CommandCenter.Web\\Components\\Pages\\SessionDetail.razor",
+              "ToolTip": "D:\\Source\\uc1-multisensory-learning-analysis-dev\\CommandCenter\\src\\CommandCenter.Web\\Components\\Pages\\SessionDetail.razor",
+              "RelativeToolTip": "CommandCenter\\src\\CommandCenter.Web\\Components\\Pages\\SessionDetail.razor",
+              "ViewState": "AgIAAHwAAAAAAAAAAKBrwAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000759|",
+              "WhenOpened": "2026-05-21T02:38:53.3Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 12,
+              "Title": "SessionMapper.cs",
+              "DocumentMoniker": "D:\\Source\\uc1-multisensory-learning-analysis-dev\\CommandCenter\\src\\CommandCenter.Application\\Mapping\\SessionMapper.cs",
+              "RelativeDocumentMoniker": "CommandCenter\\src\\CommandCenter.Application\\Mapping\\SessionMapper.cs",
+              "ToolTip": "D:\\Source\\uc1-multisensory-learning-analysis-dev\\CommandCenter\\src\\CommandCenter.Application\\Mapping\\SessionMapper.cs",
+              "RelativeToolTip": "CommandCenter\\src\\CommandCenter.Application\\Mapping\\SessionMapper.cs",
+              "ViewState": "AgIAAFkAAAAAAAAAAIBJwAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-05-21T02:32:39.123Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 11,
+              "Title": "SessionDtos.cs",
+              "DocumentMoniker": "D:\\Source\\uc1-multisensory-learning-analysis-dev\\CommandCenter\\src\\CommandCenter.Application\\DTOs\\SessionDtos.cs",
+              "RelativeDocumentMoniker": "CommandCenter\\src\\CommandCenter.Application\\DTOs\\SessionDtos.cs",
+              "ToolTip": "D:\\Source\\uc1-multisensory-learning-analysis-dev\\CommandCenter\\src\\CommandCenter.Application\\DTOs\\SessionDtos.cs",
+              "RelativeToolTip": "CommandCenter\\src\\CommandCenter.Application\\DTOs\\SessionDtos.cs",
+              "ViewState": "AgIAAFoAAAAAAAAAAIBJwAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-05-21T02:32:24.978Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 10,
+              "Title": "MetricsEngine.cs",
+              "DocumentMoniker": "D:\\Source\\uc1-multisensory-learning-analysis-dev\\CommandCenter\\src\\CommandCenter.Infrastructure\\Services\\MetricsEngine.cs",
+              "RelativeDocumentMoniker": "CommandCenter\\src\\CommandCenter.Infrastructure\\Services\\MetricsEngine.cs",
+              "ToolTip": "D:\\Source\\uc1-multisensory-learning-analysis-dev\\CommandCenter\\src\\CommandCenter.Infrastructure\\Services\\MetricsEngine.cs",
+              "RelativeToolTip": "CommandCenter\\src\\CommandCenter.Infrastructure\\Services\\MetricsEngine.cs",
+              "ViewState": "AgIAAGcAAAAAAAAAAIBJwAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-05-21T02:32:07.887Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 9,
+              "Title": "SessionMetrics.cs",
+              "DocumentMoniker": "D:\\Source\\uc1-multisensory-learning-analysis-dev\\CommandCenter\\src\\CommandCenter.Domain\\Entities\\SessionMetrics.cs",
+              "RelativeDocumentMoniker": "CommandCenter\\src\\CommandCenter.Domain\\Entities\\SessionMetrics.cs",
+              "ToolTip": "D:\\Source\\uc1-multisensory-learning-analysis-dev\\CommandCenter\\src\\CommandCenter.Domain\\Entities\\SessionMetrics.cs",
+              "RelativeToolTip": "CommandCenter\\src\\CommandCenter.Domain\\Entities\\SessionMetrics.cs",
+              "ViewState": "AgIAAB4AAAAAAAAAAEBTwAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-05-21T02:31:30.163Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "plan-4d8dfa34-ffa7-4ea7-8c7b-a84009139ec5.md [Preview]",
+              "DocumentMoniker": "C:\\Users\\diasm\\AppData\\Local\\Temp\\VisualStudio\\copilot-vs\\plan-4d8dfa34-ffa7-4ea7-8c7b-a84009139ec5.md",
+              "ToolTip": "C:\\Users\\diasm\\AppData\\Local\\Temp\\VisualStudio\\copilot-vs\\plan-4d8dfa34-ffa7-4ea7-8c7b-a84009139ec5.md [Preview]",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001818|",
+              "WhenOpened": "2026-05-21T02:31:17.44Z",
+              "EditorCaption": " [Preview]"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 8,
+              "Title": "app.css",
+              "DocumentMoniker": "D:\\Source\\uc1-multisensory-learning-analysis-dev\\CommandCenter\\src\\CommandCenter.Web\\wwwroot\\app.css",
+              "RelativeDocumentMoniker": "CommandCenter\\src\\CommandCenter.Web\\wwwroot\\app.css",
+              "ToolTip": "D:\\Source\\uc1-multisensory-learning-analysis-dev\\CommandCenter\\src\\CommandCenter.Web\\wwwroot\\app.css",
+              "RelativeToolTip": "CommandCenter\\src\\CommandCenter.Web\\wwwroot\\app.css",
+              "ViewState": "AgIAAJ4AAAAAAAAAAABBwAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003000|",
+              "WhenOpened": "2026-05-21T02:19:56.934Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 7,
+              "Title": "App.razor",
+              "DocumentMoniker": "D:\\Source\\uc1-multisensory-learning-analysis-dev\\CommandCenter\\src\\CommandCenter.Web\\Components\\App.razor",
+              "RelativeDocumentMoniker": "CommandCenter\\src\\CommandCenter.Web\\Components\\App.razor",
+              "ToolTip": "D:\\Source\\uc1-multisensory-learning-analysis-dev\\CommandCenter\\src\\CommandCenter.Web\\Components\\App.razor",
+              "RelativeToolTip": "CommandCenter\\src\\CommandCenter.Web\\Components\\App.razor",
+              "ViewState": "AgIAABIAAAAAAAAAAIBJwAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000759|",
+              "WhenOpened": "2026-05-21T02:16:35.388Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "Program.cs",
+              "DocumentMoniker": "D:\\Source\\uc1-multisensory-learning-analysis-dev\\CommandCenter\\src\\CommandCenter.Api\\Program.cs",
+              "RelativeDocumentMoniker": "CommandCenter\\src\\CommandCenter.Api\\Program.cs",
+              "ToolTip": "D:\\Source\\uc1-multisensory-learning-analysis-dev\\CommandCenter\\src\\CommandCenter.Api\\Program.cs",
+              "RelativeToolTip": "CommandCenter\\src\\CommandCenter.Api\\Program.cs",
+              "ViewState": "AgIAAK0AAAAAAAAAAEBjwAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-05-21T02:14:49.333Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "appsettings.json",
+              "DocumentMoniker": "D:\\Source\\uc1-multisensory-learning-analysis-dev\\CommandCenter\\src\\CommandCenter.Api\\appsettings.json",
+              "RelativeDocumentMoniker": "CommandCenter\\src\\CommandCenter.Api\\appsettings.json",
+              "ToolTip": "D:\\Source\\uc1-multisensory-learning-analysis-dev\\CommandCenter\\src\\CommandCenter.Api\\appsettings.json",
+              "RelativeToolTip": "CommandCenter\\src\\CommandCenter.Api\\appsettings.json",
+              "ViewState": "AgIAAB8AAAAAAAAAAIBJwAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2026-05-21T02:13:54.369Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "plan-72bb27de-51ba-4fa4-a4d0-4cd0c32a2772.md [Preview]",
+              "DocumentMoniker": "D:\\Source\\uc1-multisensory-learning-analysis-dev\\plan-72bb27de-51ba-4fa4-a4d0-4cd0c32a2772.md",
+              "RelativeDocumentMoniker": "plan-72bb27de-51ba-4fa4-a4d0-4cd0c32a2772.md",
+              "ToolTip": "D:\\Source\\uc1-multisensory-learning-analysis-dev\\plan-72bb27de-51ba-4fa4-a4d0-4cd0c32a2772.md [Preview]",
+              "RelativeToolTip": "plan-72bb27de-51ba-4fa4-a4d0-4cd0c32a2772.md [Preview]",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001818|",
+              "WhenOpened": "2026-05-21T00:56:38.924Z",
+              "EditorCaption": " [Preview]"
+            }
+          ]
+        },
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": -1,
+          "Children": [
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{34e76e81-ee4a-11d0-ae2e-00a0c90fffc3}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{d78612c7-9962-4b83-95d9-268046dad23a}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:3:0:{d212f56b-c48a-434c-a121-1c5d80b59b9f}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:22:0:{d212f56b-c48a-434c-a121-1c5d80b59b9f}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:21:0:{d212f56b-c48a-434c-a121-1c5d80b59b9f}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:20:0:{d212f56b-c48a-434c-a121-1c5d80b59b9f}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:19:0:{d212f56b-c48a-434c-a121-1c5d80b59b9f}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:18:0:{d212f56b-c48a-434c-a121-1c5d80b59b9f}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{e1b7d1f8-9b3c-49b1-8f4f-bfc63a88835d}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{004be353-6879-467c-9d1e-9ac23cdf6d49}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:2:0:{d212f56b-c48a-434c-a121-1c5d80b59b9f}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:11:0:{d212f56b-c48a-434c-a121-1c5d80b59b9f}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:10:0:{d212f56b-c48a-434c-a121-1c5d80b59b9f}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:7:0:{d212f56b-c48a-434c-a121-1c5d80b59b9f}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:6:0:{d212f56b-c48a-434c-a121-1c5d80b59b9f}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:5:0:{d212f56b-c48a-434c-a121-1c5d80b59b9f}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:13:0:{d212f56b-c48a-434c-a121-1c5d80b59b9f}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:8:0:{d212f56b-c48a-434c-a121-1c5d80b59b9f}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:1:0:{d212f56b-c48a-434c-a121-1c5d80b59b9f}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:4:0:{d212f56b-c48a-434c-a121-1c5d80b59b9f}"
+            }
+          ]
+        },
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": -1,
+          "Children": [
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{40ea2e6b-2121-4bb8-a43e-c83c04b51041}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

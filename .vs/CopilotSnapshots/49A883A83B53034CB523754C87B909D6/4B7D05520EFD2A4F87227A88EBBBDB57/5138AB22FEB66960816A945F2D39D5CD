@@ -1,0 +1,80 @@
+﻿using CommandCenter.Application;
+using CommandCenter.Application.DTOs;
+using CommandCenter.Application.Services;
+using CommandCenter.Infrastructure;
+using Microsoft.AspNetCore.Mvc;
+using Scalar.AspNetCore;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddOpenApi();
+builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddApplication();
+
+var app = builder.Build();
+
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+    app.MapScalarApiReference();
+}
+
+app.UseHttpsRedirection();
+
+// ── Sessions ─────────────────────────────────────────────────────────────────
+
+var sessions = app.MapGroup("/api/sessions").WithTags("Sessions");
+
+sessions.MapGet("/", async (
+    [FromQuery] int page,
+    [FromQuery] int pageSize,
+    SessionService svc,
+    CancellationToken ct) =>
+{
+    if (page < 1) page = 1;
+    if (pageSize < 1 || pageSize > 100) pageSize = 20;
+    var result = await svc.ListAsync(page, pageSize, ct);
+    return Results.Ok(result);
+})
+.WithName("ListSessions")
+.WithSummary("List all learning sessions (paginated)");
+
+sessions.MapGet("/{id:guid}", async (
+    Guid id,
+    SessionService svc,
+    CancellationToken ct) =>
+{
+    var dto = await svc.GetAsync(id, ct);
+    return dto is null ? Results.NotFound() : Results.Ok(dto);
+})
+.WithName("GetSession")
+.WithSummary("Get a single learning session with full analysis");
+
+sessions.MapPost("/upload", async (
+    HttpRequest request,
+    [FromQuery] string title,
+    [FromQuery] string learnerName,
+    [FromQuery] string? description,
+    SessionService svc,
+    CancellationToken ct) =>
+{
+    if (!request.HasFormContentType)
+        return Results.BadRequest("Multipart form required.");
+
+    var form = await request.ReadFormAsync(ct);
+    var file = form.Files.GetFile("file");
+    if (file is null)
+        return Results.BadRequest("No file uploaded.");
+
+    var contentType = file.ContentType;
+    var uploadRequest = new UploadSessionRequest(title, learnerName, description, contentType);
+
+    await using var stream = file.OpenReadStream();
+    var dto = await svc.UploadAsync(stream, file.FileName, uploadRequest, ct);
+    return Results.Created($"/api/sessions/{dto.Id}", dto);
+})
+.WithName("UploadSession")
+.WithSummary("Upload a media file for a new learning session")
+.DisableAntiforgery();
+
+app.Run();

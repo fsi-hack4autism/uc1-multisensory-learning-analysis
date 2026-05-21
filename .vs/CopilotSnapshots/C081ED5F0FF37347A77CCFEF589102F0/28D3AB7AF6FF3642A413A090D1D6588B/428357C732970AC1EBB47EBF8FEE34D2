@@ -1,0 +1,346 @@
+﻿@page "/sessions/{Id:guid}"
+@rendermode InteractiveServer
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager Nav
+
+<PageTitle>Session Detail</PageTitle>
+
+<div class="container-fluid py-4">
+    <div class="mb-3">
+        <a href="/" class="btn btn-sm btn-outline-secondary">&larr; Back to Dashboard</a>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="d-flex justify-content-center py-5">
+            <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading…</span></div>
+        </div>
+    }
+    else if (_error is not null)
+    {
+        <div class="alert alert-danger">@_error</div>
+    }
+    else if (_session is not null)
+    {
+        <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
+            <div>
+                <h2 class="h3 mb-1">@_session.Title</h2>
+                <span class="text-muted">@_session.LearnerName</span>
+                @if (_session.Description is not null)
+                {
+                    <p class="text-muted small mt-1 mb-0">@_session.Description</p>
+                }
+            </div>
+            <span class="badge fs-6 @StatusBadge(_session.Status)">@_session.Status</span>
+        </div>
+
+        <div class="row g-3 mb-4">
+            <div class="col-sm-6 col-lg-3">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <div class="text-muted small mb-1">Created</div>
+                        <div class="fw-semibold">@_session.CreatedAt.ToString("MMM d, yyyy HH:mm") UTC</div>
+                    </div>
+                </div>
+            </div>
+            @if (_session.ProcessedAt.HasValue)
+            {
+                <div class="col-sm-6 col-lg-3">
+                    <div class="card text-center h-100">
+                        <div class="card-body">
+                            <div class="text-muted small mb-1">Processed</div>
+                            <div class="fw-semibold">@_session.ProcessedAt.Value.ToString("MMM d, yyyy HH:mm") UTC</div>
+                        </div>
+                    </div>
+                </div>
+            }
+            @if (_session.Duration.HasValue)
+            {
+                <div class="col-sm-6 col-lg-3">
+                    <div class="card text-center h-100">
+                        <div class="card-body">
+                            <div class="text-muted small mb-1">Duration</div>
+                            <div class="fw-semibold">@FormatDuration(_session.Duration.Value)</div>
+                        </div>
+                    </div>
+                </div>
+            }
+            @if (_session.Metrics is not null)
+            {
+                <div class="col-sm-6 col-lg-3">
+                    <div class="card text-center h-100">
+                        <div class="card-body">
+                            <div class="text-muted small mb-1">Words Spoken</div>
+                            <div class="fw-semibold">@_session.Metrics.TotalWordsSpoken.ToString("N0")</div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        @if (_session.Metrics is not null)
+        {
+            <div class="card mb-4">
+                <div class="card-header fw-semibold">Learning Signal Metrics</div>
+                <div class="card-body">
+                    <p class="text-muted small mb-3">
+                        These scores are low/medium/high confidence learning signals only — not clinical or diagnostic assessments.
+                    </p>
+                    <div class="row g-3">
+                        @MetricBar("Engagement", _session.Metrics.EngagementScore, "success")
+                        @MetricBar("Attention", _session.Metrics.AttentionScore, "info")
+                        @MetricBar("Comprehension", _session.Metrics.ComprehensionScore, "primary")
+                        @MetricBar("Frustration", _session.Metrics.FrustrationScore, "warning")
+                        @MetricBar("Confusion", _session.Metrics.ConfusionScore, "danger")
+                    </div>
+                    <div class="row g-3 mt-1 text-center">
+                        <div class="col-6 col-md-3">
+                            <div class="text-muted small">Speaking Rate</div>
+                            <div class="fw-semibold">@_session.Metrics.SpeakingRateWordsPerMinute.ToString("F0") wpm</div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="text-muted small">Pauses</div>
+                            <div class="fw-semibold">@_session.Metrics.PauseCount</div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="text-muted small">Questions</div>
+                            <div class="fw-semibold">@_session.Metrics.QuestionCount</div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="text-muted small">Filler Words</div>
+                            <div class="fw-semibold">@_session.Metrics.FillerWordCount</div>
+                        </div>
+                    </div>
+                    <div class="text-muted small mt-2">Computed @_session.Metrics.ComputedAt.ToString("MMM d, yyyy HH:mm") UTC</div>
+                </div>
+            </div>
+        }
+
+        @if (_session.Analysis is not null)
+        {
+            <div class="card mb-4">
+                <div class="card-header fw-semibold">AI Analysis</div>
+                <div class="card-body">
+                    <p class="mb-2">@_session.Analysis.Summary</p>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="text-muted small mb-1">Key Topics</div>
+                            <p class="mb-0">@_session.Analysis.KeyTopics</p>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="text-muted small mb-1">Inferred Objectives</div>
+                            <p class="mb-0">@_session.Analysis.LearningObjectivesInferred</p>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="text-muted small mb-1">Strengths</div>
+                            <p class="mb-0">@_session.Analysis.StrengthsObserved</p>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="text-muted small mb-1">Areas for Improvement</div>
+                            <p class="mb-0">@_session.Analysis.AreasForImprovement</p>
+                        </div>
+                    </div>
+                    <div class="text-muted small mt-2">
+                        Analyzed @_session.Analysis.AnalyzedAt.ToString("MMM d, yyyy HH:mm") UTC
+                        &middot; Model: @_session.Analysis.ModelVersion
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (_session.Recommendations.Count > 0)
+        {
+            <div class="card mb-4">
+                <div class="card-header fw-semibold">Recommendations</div>
+                <div class="list-group list-group-flush">
+                    @foreach (var r in _session.Recommendations.OrderBy(r => r.Priority))
+                    {
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <div class="fw-semibold">@r.Title</div>
+                                    <div class="text-muted small">@r.Body</div>
+                                </div>
+                                <span class="badge bg-secondary ms-3">@r.Type</span>
+                            </div>
+                            <div class="text-muted small mt-1">@r.GeneratedAt.ToString("MMM d, yyyy HH:mm") UTC</div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        @if (_session.Signals.Count > 0)
+        {
+            <div class="card mb-4">
+                <div class="card-header fw-semibold">Learning Signals Timeline</div>
+                <div class="card-body">
+                    <p class="text-muted small mb-3">
+                        All signals are low/medium/high confidence learning indicators only — not clinical or diagnostic findings.
+                    </p>
+                    <div style="max-height:320px;overflow-y:auto">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Signal</th>
+                                    <th>Level</th>
+                                    <th>Confidence</th>
+                                    <th>Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var sig in _session.Signals.OrderBy(s => s.Timestamp))
+                                {
+                                    <tr>
+                                        <td class="text-nowrap">@FormatDuration(sig.Timestamp)</td>
+                                        <td><span class="badge @SignalTypeBadge(sig.SignalType)">@sig.SignalType</span></td>
+                                        <td>@sig.Level</td>
+                                        <td>@sig.ConfidenceScore.ToString("P0")</td>
+                                        <td class="text-muted small">@sig.Notes</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (_session.Transcript.Count > 0)
+        {
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span class="fw-semibold">Transcript</span>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => _showTranscript = !_showTranscript">
+                        @(_showTranscript ? "Collapse" : "Expand")
+                    </button>
+                </div>
+                @if (_showTranscript)
+                {
+                    <div class="card-body" style="max-height:400px;overflow-y:auto">
+                        @foreach (var seg in _session.Transcript.OrderBy(t => t.SequenceIndex))
+                        {
+                            <div class="mb-2">
+                                <span class="badge bg-light text-dark me-2">@FormatDuration(seg.StartTime)</span>
+                                @if (seg.SpeakerTag is not null)
+                                {
+                                    <span class="badge bg-secondary me-1">@seg.SpeakerTag</span>
+                                }
+                                <span>@seg.Text</span>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private SessionDetailDto? _session;
+    private bool _loading = true;
+    private string? _error;
+    private bool _showTranscript = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var client = HttpClientFactory.CreateClient("CommandCenterApi");
+            _session = await client.GetFromJsonAsync<SessionDetailDto>($"/api/sessions/{Id}");
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load session: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static string FormatDuration(TimeSpan t) =>
+        t.TotalHours >= 1 ? t.ToString(@"h\:mm\:ss") : t.ToString(@"m\:ss");
+
+    private static string StatusBadge(string status) => status switch
+    {
+        "Completed" => "bg-success",
+        "Failed" => "bg-danger",
+        "Processing" or "Transcribing" or "Analyzing" => "bg-warning text-dark",
+        _ => "bg-secondary"
+    };
+
+    private static string SignalTypeBadge(string type) => type switch
+    {
+        "EngagementIndicator" => "bg-success",
+        "AttentionIndicator" => "bg-info text-dark",
+        "ComprehensionIndicator" => "bg-primary",
+        "FrustrationIndicator" => "bg-warning text-dark",
+        "ConfusionIndicator" => "bg-danger",
+        "StimmingIndicator" => "bg-secondary",
+        _ => "bg-light text-dark"
+    };
+
+    private RenderFragment MetricBar(string label, double value, string color) => __builder =>
+    {
+        <div class="col-md-6">
+            <div class="d-flex justify-content-between small mb-1">
+                <span>@label</span>
+                <span class="text-muted">@value.ToString("P0")</span>
+            </div>
+            <div class="progress" style="height:8px">
+                <div class="progress-bar bg-@color"
+                     style="width:@((value * 100).ToString("F0"))%">
+                </div>
+            </div>
+        </div>;
+    };
+
+    // ── Local DTOs ────────────────────────────────────────────────────────────
+    private record SessionDetailDto(
+        Guid Id, string Title, string LearnerName, string? Description,
+        string Status, DateTimeOffset CreatedAt, string CreatedAtTimeZone,
+        DateTimeOffset? ProcessedAt, string? ProcessedAtTimeZone,
+        TimeSpan? Duration, string? ContentType, string? ErrorMessage,
+        List<TranscriptSegmentDto> Transcript,
+        List<LearningSignalDto> Signals,
+        List<RecommendationDto> Recommendations,
+        SessionMetricsDto? Metrics,
+        SessionAnalysisDto? Analysis,
+        VideoAnalysisDto? VideoAnalysis);
+
+    private record TranscriptSegmentDto(
+        int SequenceIndex, TimeSpan StartTime, TimeSpan EndTime,
+        string Text, double Confidence, string? SpeakerTag);
+
+    private record LearningSignalDto(
+        TimeSpan Timestamp, string SignalType, string Level,
+        double ConfidenceScore, string? Notes, string? SourceEvidence);
+
+    private record RecommendationDto(
+        string Title, string Body, string Type, int Priority,
+        DateTimeOffset GeneratedAt, string GeneratedAtTimeZone);
+
+    private record SessionMetricsDto(
+        double EngagementScore, double AttentionScore, double FrustrationScore,
+        double ConfusionScore, double ComprehensionScore,
+        int TotalWordsSpoken, double SpeakingRateWordsPerMinute,
+        int PauseCount, TimeSpan TotalPauseDuration,
+        int QuestionCount, int FillerWordCount,
+        DateTimeOffset ComputedAt, string ComputedAtTimeZone);
+
+    private record SessionAnalysisDto(
+        string Summary, string KeyTopics, string LearningObjectivesInferred,
+        string StrengthsObserved, string AreasForImprovement,
+        string ModelVersion, DateTimeOffset AnalyzedAt, string AnalyzedAtTimeZone);
+
+    private record VideoAnalysisDto(
+        List<VideoLabelDto> Labels, List<VideoShotDto> Shots,
+        DateTimeOffset AnalyzedAt, string AnalyzedAtTimeZone);
+
+    private record VideoLabelDto(string Description, double Confidence);
+    private record VideoShotDto(TimeSpan StartTime, TimeSpan EndTime);
+}

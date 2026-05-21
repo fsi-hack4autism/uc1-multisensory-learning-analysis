@@ -1,0 +1,1006 @@
+﻿@page "/sessions/{Id:guid}"
+@rendermode InteractiveServer
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@implements IDisposable
+
+<PageTitle>@(_session?.Title ?? "Session Detail") — Learning Command Center</PageTitle>
+
+<div class="container-fluid py-4">
+    <div class="mb-3">
+        <a href="/" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Back to Dashboard
+        </a>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="d-flex justify-content-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading…</span>
+            </div>
+        </div>
+    }
+    else if (_error is not null)
+    {
+        <div class="alert alert-danger d-flex align-items-center gap-2">
+            <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+            <span>@_error</span>
+        </div>
+    }
+    else if (_session is not null)
+    {
+        @* ── Header ────────────────────────────────────────────────────────────── *@
+        <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-3">
+            <div>
+                <h2 class="h3 mb-1">@_session.Title</h2>
+                <div class="text-muted mb-1">
+                    <i class="bi bi-person me-1"></i>@_session.LearnerName
+                </div>
+                @if (_session.Description is not null)
+                {
+                    <p class="text-muted small mb-0">@_session.Description</p>
+                }
+                <div class="text-muted small mt-1">
+                    <i class="bi bi-clock me-1"></i>
+                    Uploaded @_session.CreatedAt.ToString("MMM d, yyyy HH:mm") @_session.CreatedAtTimeZone
+                    @if (_session.ProcessedAt.HasValue)
+                    {
+                        <span> &middot; Processed @_session.ProcessedAt.Value.ToString("MMM d, yyyy HH:mm") @_session.ProcessedAtTimeZone</span>
+                    }
+                    @if (_session.Duration.HasValue)
+                    {
+                        <span> &middot; <i class="bi bi-stopwatch me-1"></i>@FormatDuration(_session.Duration.Value)</span>
+                    }
+                </div>
+            </div>
+
+            @* ── Session Health Score (AC-6.1.1) ─────────────────────────────── *@
+            <div class="d-flex flex-column align-items-end gap-2">
+                <span class="badge fs-6 @StatusBadge(_session.Status)">@_session.Status</span>
+                @if (_session.Metrics is not null)
+                {
+                    var score = _session.Metrics.SessionHealthScore;
+                    var scoreColor = score >= 0.75 ? "success" : score >= 0.50 ? "warning" : "danger";
+                    var scoreLabel = score >= 0.75 ? "Strong" : score >= 0.50 ? "Moderate" : "Needs Attention";
+                    <div class="card border-0 shadow-sm text-center px-4 py-2">
+                        <div class="display-5 fw-bold text-@scoreColor lh-1">
+                            @((score * 100).ToString("F0"))
+                        </div>
+                        <div class="small fw-semibold text-@scoreColor">@scoreLabel</div>
+                        <div class="text-muted" style="font-size:.7rem">Session Health Score</div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        @* ── AC-6.1.5 Processing Status Banner ────────────────────────────────── *@
+        @if (_session.Status is "Uploaded" or "Processing" or "Transcribing" or "Analyzing")
+        {
+            <div class="card border-0 shadow-sm mb-4 border-start border-4 border-info">
+                <div class="card-body py-3">
+                    <div class="d-flex align-items-center gap-3 mb-2">
+                        <div class="spinner-border spinner-border-sm text-info" role="status"></div>
+                        <span class="fw-semibold">Analysis in progress</span>
+                        <span class="badge bg-info text-dark">@_session.Status</span>
+                        <span class="ms-auto text-muted small">
+                            <i class="bi bi-arrow-repeat me-1"></i>Refreshing every 10 s
+                        </span>
+                    </div>
+                    @* Pipeline stage track *@
+                    <div class="d-flex align-items-center gap-0 mt-1">
+                        @foreach (var (stage, idx) in ProcessingStages.Select((s, i) => (s, i)))
+                        {
+                            var isCurrent = stage.Key == _session.Status;
+                            var isPast = ProcessingStages.IndexOf(stage) < ProcessingStages.IndexOf(ProcessingStages.First(s => s.Key == _session.Status));
+                            var stageColor = isPast ? "success" : isCurrent ? "info" : "secondary";
+                            <div class="d-flex align-items-center @(idx > 0 ? "flex-grow-1" : "")">
+                                @if (idx > 0)
+                                {
+                                    <div class="border-top flex-grow-1 @(isPast ? "border-success" : "border-secondary")"
+                                         style="margin-top:1px;border-width:2px!important"></div>
+                                }
+                                <div class="d-flex flex-column align-items-center" style="min-width:4rem">
+                                    <div class="rounded-circle d-flex align-items-center justify-content-center text-white"
+                                         style="width:28px;height:28px;background:var(--bs-@stageColor)"
+                                         title="@stage.Label">
+                                        @if (isPast)
+                                        {
+                                            <i class="bi bi-check2" style="font-size:.8rem"></i>
+                                        }
+                                        else if (isCurrent)
+                                        {
+                                            <div class="spinner-border" style="width:.85rem;height:.85rem;border-width:2px" role="status"></div>
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-circle" style="font-size:.7rem"></i>
+                                        }
+                                    </div>
+                                    <div class="text-center mt-1" style="font-size:.65rem;max-width:4rem;line-height:1.2">
+                                        <span class="@(isCurrent ? "fw-bold" : "text-muted")">@stage.Label</span>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+        @if (_session.Status == "Failed" && _session.ErrorMessage is not null)
+        {
+            <div class="alert alert-danger d-flex gap-2 align-items-start mb-4">
+                <i class="bi bi-x-octagon-fill fs-5 mt-1"></i>
+                <div>
+                    <div class="fw-semibold">Processing failed</div>
+                    <div class="small">@_session.ErrorMessage</div>
+                </div>
+            </div>
+        }
+
+        @* ── AC-6.1.2 Metric Cards ─────────────────────────────────────────────── *@
+        @if (_session.Metrics is not null)
+        {
+            var m = _session.Metrics;
+            <div class="row g-3 mb-4">
+                @MetricCard("Engagement", m.EngagementScore, "success", "bi-lightning-charge-fill",
+                    "Reflects active participation signals observed in the session.")
+                @MetricCard("Attention", m.AttentionScore, "info", "bi-eye-fill",
+                    "Indicates sustained focus level inferred from audio patterns.")
+                @MetricCard("Comprehension", m.ComprehensionScore, "primary", "bi-lightbulb-fill",
+                    "Reflects evidence of understanding and on-topic responses.")
+                @MetricCard("Confusion Risk", m.ConfusionScore, "danger", "bi-question-circle-fill",
+                    "Higher values may suggest uncertainty — review those moments in the transcript.")
+                @MetricCard("Frustration Risk", m.FrustrationScore, "warning", "bi-emoji-frown-fill",
+                    "Higher values may indicate difficulty — not a diagnostic finding.")
+
+                @* Session Stats card *@
+                <div class="col-sm-6 col-lg-4">
+                    <div class="card h-100 border-0 shadow-sm">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center gap-2 text-muted small mb-3">
+                                <i class="bi bi-bar-chart-line-fill"></i>
+                                <span>Session Stats</span>
+                            </div>
+                            <div class="row g-2 text-center">
+                                <div class="col-6">
+                                    <div class="fw-semibold fs-5">@m.TotalWordsSpoken.ToString("N0")</div>
+                                    <div class="text-muted small">Words</div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="fw-semibold fs-5">@m.SpeakingRateWordsPerMinute.ToString("F0")</div>
+                                    <div class="text-muted small">wpm</div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="fw-semibold">@m.QuestionCount</div>
+                                    <div class="text-muted small">Questions</div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="fw-semibold">@m.PauseCount</div>
+                                    <div class="text-muted small">Pauses</div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="fw-semibold">@m.FillerWordCount</div>
+                                    <div class="text-muted small">Fillers</div>
+                                </div>
+                            </div>
+                            <div class="text-muted mt-2" style="font-size:.7rem">
+                                <i class="bi bi-clock me-1"></i>
+                                Computed @m.ComputedAt.ToString("MMM d, yyyy HH:mm") @m.ComputedAtTimeZone
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                @* Health score breakdown mini-card *@
+                <div class="col-12">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-body py-2">
+                            <div class="d-flex align-items-center gap-2 mb-2 text-muted small">
+                                <i class="bi bi-heart-pulse-fill text-danger"></i>
+                                <span class="fw-semibold">Health Score Breakdown</span>
+                                <span class="ms-auto text-muted" style="font-size:.7rem">
+                                    Engagement ×35% + Attention ×25% + Comprehension ×25% − Confusion ×10% − Frustration ×15%
+                                </span>
+                            </div>
+                            <div class="progress" style="height:14px;border-radius:7px">
+                                @{
+                                    var eng = m.EngagementScore * 0.35;
+                                    var att = m.AttentionScore * 0.25;
+                                    var comp = m.ComprehensionScore * 0.25;
+                                    var total = Math.Clamp(eng + att + comp, 0, 1) * 100;
+                                }
+                                <div class="progress-bar bg-success" style="width:@((eng * 100).ToString("F1"))%" title="Engagement"></div>
+                                <div class="progress-bar bg-info" style="width:@((att * 100).ToString("F1"))%" title="Attention"></div>
+                                <div class="progress-bar bg-primary" style="width:@((comp * 100).ToString("F1"))%" title="Comprehension"></div>
+                            </div>
+                            <div class="d-flex gap-3 mt-1" style="font-size:.7rem">
+                                <span><span class="badge bg-success">&nbsp;</span> Engagement</span>
+                                <span><span class="badge bg-info">&nbsp;</span> Attention</span>
+                                <span><span class="badge bg-primary">&nbsp;</span> Comprehension</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <div class="row g-4">
+            @* ── Left column ───────────────────────────────────────────────────── *@
+            <div class="col-lg-7">
+
+                @* AI Session Summary — AC-7.1.1, 7.1.2, 7.1.3, 7.1.4 *@
+                @if (_session.Analysis is not null)
+                {
+                    <div class="card mb-4 border-0 shadow-sm">
+                        <div class="card-header fw-semibold bg-transparent d-flex align-items-center gap-2">
+                            <i class="bi bi-stars text-warning"></i> Session Summary
+                        </div>
+                        <div class="card-body">
+                            @* AC-7.1.3: Insufficient data state *@
+                            @if (_session.Analysis.InsufficientData)
+                            {
+                                <div class="alert alert-warning d-flex align-items-center gap-2 mb-0">
+                                    <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+                                    <div>
+                                        <div class="fw-semibold">Insufficient data</div>
+                                        <div class="small">@_session.Analysis.Summary</div>
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                @* AC-7.1.1: Summary paragraph *@
+                                <p class="mb-3">@_session.Analysis.Summary</p>
+
+                                @* AC-7.1.2: Strengths, Concerns (areas), Next Steps *@
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <div class="text-muted small mb-1">
+                                            <i class="bi bi-journal-bookmark me-1"></i>Key Topics
+                                        </div>
+                                        <p class="mb-0">@_session.Analysis.KeyTopics</p>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="text-muted small mb-1">
+                                            <i class="bi bi-bullseye me-1"></i>Inferred Objectives
+                                        </div>
+                                        <p class="mb-0">@_session.Analysis.LearningObjectivesInferred</p>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="text-muted small mb-1">
+                                            <i class="bi bi-check-circle-fill me-1 text-success"></i>Strengths
+                                        </div>
+                                        <p class="mb-0">@_session.Analysis.StrengthsObserved</p>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="text-muted small mb-1">
+                                            <i class="bi bi-exclamation-circle-fill me-1 text-warning"></i>Concerns
+                                        </div>
+                                        <p class="mb-0">@_session.Analysis.AreasForImprovement</p>
+                                    </div>
+                                    @if (!string.IsNullOrWhiteSpace(_session.Analysis.NextSteps))
+                                    {
+                                        <div class="col-12">
+                                            <div class="alert alert-info d-flex align-items-start gap-2 mb-0 py-2">
+                                                <i class="bi bi-arrow-right-circle-fill fs-5 mt-1 text-info flex-shrink-0"></i>
+                                                <div>
+                                                    <div class="fw-semibold small mb-1">Next Steps</div>
+                                                    <div class="small">@_session.Analysis.NextSteps</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+
+                                <div class="text-muted mt-3" style="font-size:.72rem">
+                                    <i class="bi bi-cpu me-1"></i>
+                                    Analyzed @_session.Analysis.AnalyzedAt.ToString("MMM d, yyyy HH:mm") @_session.Analysis.AnalyzedAtTimeZone
+                                    &middot; Model: @_session.Analysis.ModelVersion
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @* Recommendations *@
+                @if (_session.Recommendations.Count > 0)
+                {
+                    <div class="card mb-4 border-0 shadow-sm">
+                        <div class="card-header fw-semibold bg-transparent d-flex align-items-center gap-2">
+                            <i class="bi bi-lightbulb-fill text-warning"></i>
+                            Recommended Interventions
+                        </div>
+                        <div class="list-group list-group-flush">
+                            @foreach (var r in _session.Recommendations.OrderBy(r => r.Priority))
+                            {
+                                <div class="list-group-item border-0 py-3">
+                                    <div class="d-flex justify-content-between align-items-start gap-2">
+                                        <div class="d-flex gap-2 align-items-start">
+                                            <span class="badge bg-light text-dark border mt-1">@r.Priority</span>
+                                            <div>
+                                                <div class="fw-semibold">@r.Title</div>
+                                                <div class="text-muted small">@r.Body</div>
+                                                <div class="text-muted mt-1" style="font-size:.7rem">
+                                                    <i class="bi bi-clock me-1"></i>
+                                                    @r.GeneratedAt.ToString("MMM d, yyyy HH:mm") @r.GeneratedAtTimeZone
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <span class="badge @RecommendationTypeBadge(r.Type) text-nowrap">@FormatRecommendationType(r.Type)</span>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @* AC-6.1.3 Transcript — expanded by default *@
+                @if (_session.Transcript.Count > 0)
+                {
+                    <div class="card mb-4 border-0 shadow-sm">
+                        <div class="card-header d-flex justify-content-between align-items-center bg-transparent">
+                            <span class="fw-semibold d-flex align-items-center gap-2">
+                                <i class="bi bi-card-text"></i> Transcript
+                                <span class="badge bg-secondary fw-normal">@_session.Transcript.Count segments</span>
+                            </span>
+                            <button class="btn btn-sm btn-outline-secondary"
+                                    @onclick="() => _showTranscript = !_showTranscript">
+                                <i class="bi @(_showTranscript ? "bi-chevron-up" : "bi-chevron-down") me-1"></i>
+                                @(_showTranscript ? "Collapse" : "Expand")
+                            </button>
+                        </div>
+                        @if (_showTranscript)
+                        {
+                            <div class="card-body p-0">
+                                @if (!string.IsNullOrEmpty(_transcriptSearch))
+                                {
+                                    <div class="px-3 pt-3 pb-0">
+                                        <div class="input-group input-group-sm mb-2">
+                                            <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                            <input class="form-control" placeholder="Search transcript…"
+                                                   @bind="_transcriptSearch" @bind:event="oninput" />
+                                            <button class="btn btn-outline-secondary"
+                                                    @onclick="() => _transcriptSearch = string.Empty">
+                                                <i class="bi bi-x"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="px-3 pt-3 pb-0">
+                                        <div class="input-group input-group-sm mb-2">
+                                            <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                            <input class="form-control" placeholder="Search transcript…"
+                                                   @bind="_transcriptSearch" @bind:event="oninput" />
+                                        </div>
+                                    </div>
+                                }
+                                <div style="max-height:460px;overflow-y:auto;padding:.75rem 1rem" id="transcript-viewer">
+                                    @foreach (var seg in FilteredTranscript)
+                                    {
+                                        var isHighlighted = _highlightedSegmentIndex == seg.SequenceIndex;
+                                        <div id="seg-@seg.SequenceIndex"
+                                             class="d-flex gap-2 mb-2 p-2 rounded @(isHighlighted ? "bg-warning bg-opacity-25 border border-warning" : "")">
+                                            <div class="text-nowrap">
+                                                <span class="badge bg-light text-dark border">@FormatDuration(seg.StartTime)</span>
+                                            </div>
+                                            @if (seg.SpeakerTag is not null)
+                                            {
+                                                <span class="badge bg-secondary align-self-start mt-1">@seg.SpeakerTag</span>
+                                            }
+                                            <span class="small">@HighlightText(seg.Text, _transcriptSearch)</span>
+                                        </div>
+                                    }
+                                    @if (!FilteredTranscript.Any())
+                                    {
+                                        <div class="text-muted text-center py-3 small">No segments match your search.</div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                else if (_session.Status == "Completed")
+                {
+                    <div class="card mb-4 border-0 shadow-sm">
+                        <div class="card-body text-muted text-center py-4 small">
+                            <i class="bi bi-card-text fs-4 d-block mb-2"></i>
+                            No transcript was generated for this session.
+                        </div>
+                    </div>
+                }
+            </div>
+
+            @* ── Right column ────────────────────────────────────────────────────── *@
+            <div class="col-lg-5">
+
+                @* ── AC-6.2 Session Timeline ─────────────────────────────────────── *@
+                @{
+                    var markers = TimelineMarkers.ToList();
+                    var hasDuration = _session?.Duration.HasValue == true && _session.Duration!.Value.TotalSeconds > 0;
+                }
+                @if (hasDuration && (markers.Count > 0 || (_session?.Transcript.Count ?? 0) > 0))
+                {
+                    var totalSec = _session!.Duration!.Value.TotalSeconds;
+                    <div class="card mb-4 border-0 shadow-sm">
+                        <div class="card-header fw-semibold bg-transparent d-flex align-items-center gap-2">
+                            <i class="bi bi-clock-history text-primary"></i>
+                            Session Timeline
+                            <span class="ms-auto text-muted fw-normal" style="font-size:.72rem">
+                                @FormatDuration(_session!.Duration!.Value)
+                            </span>
+                        </div>
+                        <div class="card-body pb-3">
+
+                            @* Transcript scrubber bar *@
+                            @if (_session.Transcript.Count > 0)
+                            {
+                                <div class="mb-1 text-muted" style="font-size:.68rem">Transcript segments</div>
+                                <div class="position-relative mb-2" style="height:8px;background:#e9ecef;border-radius:4px;overflow:visible">
+                                    @foreach (var seg in _session.Transcript)
+                                    {
+                                        var left  = (seg.StartTime.TotalSeconds / totalSec * 100).ToString("F2");
+                                        var width = Math.Max(0.5, (seg.EndTime - seg.StartTime).TotalSeconds / totalSec * 100).ToString("F2");
+                                        var isActive = _highlightedSegmentIndex == seg.SequenceIndex;
+                                        <div class="position-absolute"
+                                             style="left:@(left)%;width:@(width)%;top:0;height:100%;background:@(isActive ? "#fd7e14" : "#0d6efd");opacity:@(isActive ? "1" : "0.35");border-radius:2px;cursor:pointer"
+                                             title="@FormatDuration(seg.StartTime) — @seg.Text[..Math.Min(60, seg.Text.Length)]…"
+                                             @onclick="async () => { _highlightedSegmentIndex = seg.SequenceIndex; _showTranscript = true; StateHasChanged(); await ScrollToSegmentAsync(seg.SequenceIndex); }">
+                                        </div>
+                                    }
+                                </div>
+                            }
+
+                            @* Signal marker bar *@
+                            @if (markers.Count > 0)
+                            {
+                                <div class="mb-1" style="font-size:.68rem;color:#6c757d">Key moments</div>
+                                <div class="position-relative mb-3" style="height:24px;background:#e9ecef;border-radius:4px;overflow:visible">
+                                    @foreach (var m in markers)
+                                    {
+                                        var pct = (m.Timestamp.TotalSeconds / totalSec * 100);
+                                        pct = Math.Clamp(pct, 0, 99);
+                                        <button class="position-absolute border-0 p-0 d-flex align-items-center justify-content-center rounded-circle text-white"
+                                                style="left:@(pct.ToString("F2"))%;top:50%;transform:translate(-50%,-50%);width:22px;height:22px;background:var(--bs-@m.Color);cursor:pointer;z-index:1"
+                                                title="@m.Label — @FormatDuration(m.Timestamp)"
+                                                @onclick="() => ClickTimelineMarkerAsync(m)">
+                                            <i class="@m.Icon" style="font-size:.6rem"></i>
+                                        </button>
+                                    }
+                                </div>
+
+                                @* Time axis *@
+                                <div class="d-flex justify-content-between text-muted" style="font-size:.65rem">
+                                    <span>0:00</span>
+                                    <span>@FormatDuration(TimeSpan.FromSeconds(totalSec / 2))</span>
+                                    <span>@FormatDuration(_session.Duration!.Value)</span>
+                                </div>
+
+                                @* Legend *@
+                                <div class="d-flex flex-wrap gap-2 mt-2" style="font-size:.68rem">
+                                    @foreach (var grp in markers.GroupBy(m => m.Color).OrderBy(g => g.Key))
+                                    {
+                                        var sample = grp.First();
+                                        <span class="d-flex align-items-center gap-1">
+                                            <span class="rounded-circle d-inline-flex align-items-center justify-content-center text-white"
+                                                  style="width:14px;height:14px;background:var(--bs-@sample.Color)">
+                                                <i class="@sample.Icon" style="font-size:.45rem"></i>
+                                            </span>
+                                            @sample.Label.Split('·')[0].Trim()
+                                        </span>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @* AC-6.1.4 Key Moments Timeline *@
+                @if (_session.Signals.Count > 0)
+                {
+                    <div class="card mb-4 border-0 shadow-sm">
+                        <div class="card-header fw-semibold bg-transparent d-flex align-items-center gap-2">
+                            <i class="bi bi-activity text-danger"></i>
+                            Key Moments Timeline
+                            <span class="badge bg-secondary fw-normal ms-1">@_session.Signals.Count</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="alert alert-light border py-2 px-3 mb-3 small">
+                                <i class="bi bi-shield-check me-1 text-success"></i>
+                                All signals are <strong>low / medium / high confidence learning indicators</strong> only —
+                                not clinical or diagnostic findings.
+                            </div>
+
+                            @* Signal type filter pills *@
+                            <div class="d-flex flex-wrap gap-1 mb-3">
+                                <button class="btn btn-xs @(_timelineFilter is null ? "btn-dark" : "btn-outline-secondary")"
+                                        style="font-size:.72rem;padding:2px 8px"
+                                        @onclick="() => _timelineFilter = null">All</button>
+                                @foreach (var type in SignalTypeKeys)
+                                {
+                                    <button class="btn btn-xs @(_timelineFilter == type ? "btn-dark" : "btn-outline-secondary")"
+                                            style="font-size:.72rem;padding:2px 8px"
+                                            @onclick="() => _timelineFilter = (_timelineFilter == type ? null : type)">
+                                        @FormatSignalType(type)
+                                    </button>
+                                }
+                            </div>
+
+                            <div class="timeline-container" style="max-height:400px;overflow-y:auto">
+                                @foreach (var sig in FilteredSignals)
+                                {
+                                    <div class="d-flex gap-2 mb-3 align-items-start"
+                                         style="cursor:pointer" @onclick="() => JumpToSignal(sig)">
+                                        @* Timeline connector *@
+                                        <div class="d-flex flex-column align-items-center" style="min-width:2rem">
+                                            <div class="rounded-circle d-flex align-items-center justify-content-center text-white"
+                                                 style="width:28px;height:28px;flex-shrink:0;background:var(--bs-@SignalTypeColor(sig.SignalType))"
+                                                 title="@FormatSignalType(sig.SignalType)">
+                                                <i class="@SignalTypeIcon(sig.SignalType)" style="font-size:.7rem"></i>
+                                            </div>
+                                        </div>
+                                        <div class="flex-grow-1 border-start ps-2 pb-1" style="border-color:#dee2e6!important">
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <span class="badge @SignalTypeBadge(sig.SignalType)">@FormatSignalType(sig.SignalType)</span>
+                                                <span class="text-muted small">@FormatDuration(sig.Timestamp)</span>
+                                            </div>
+                                            <div class="d-flex align-items-center gap-2 mb-1">
+                                                <span class="badge @LevelBadge(sig.Level)">@sig.Level confidence</span>
+                                                <div class="progress flex-grow-1" style="height:5px">
+                                                    <div class="progress-bar @ConfidenceBar(sig.Level)"
+                                                         style="width:@((sig.ConfidenceScore * 100).ToString("F0"))%"></div>
+                                                </div>
+                                                <span class="text-muted small">@sig.ConfidenceScore.ToString("P0")</span>
+                                            </div>
+                                            @if (sig.Notes is not null)
+                                            {
+                                                <div class="text-muted small fst-italic">@sig.Notes</div>
+                                            }
+                                            @if (sig.SourceEvidence is not null)
+                                            {
+                                                <div class="text-muted small mt-1">
+                                                    <i class="bi bi-quote me-1"></i>@sig.SourceEvidence
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                                @if (!FilteredSignals.Any())
+                                {
+                                    <div class="text-muted text-center py-3 small">No signals match the selected filter.</div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+                else if (_session.Status == "Completed")
+                {
+                    <div class="card mb-4 border-0 shadow-sm">
+                        <div class="card-body text-muted text-center py-4 small">
+                            <i class="bi bi-activity fs-4 d-block mb-2"></i>
+                            No learning signals were detected for this session.
+                        </div>
+                    </div>
+                }
+
+                @* Visual Signal Panel *@
+                @if (_session.VideoAnalysis is not null)
+                {
+                    <div class="card mb-4 border-0 shadow-sm">
+                        <div class="card-header fw-semibold bg-transparent d-flex align-items-center gap-2">
+                            <i class="bi bi-camera-video-fill"></i> Visual Signal Analysis
+                        </div>
+                        <div class="card-body">
+                            <div class="alert alert-light border py-2 px-3 mb-3 small">
+                                <i class="bi bi-shield-check me-1 text-success"></i>
+                                Visual signals are <strong>low confidence indicators only</strong> — not clinical findings.
+                            </div>
+                            @if (_session.VideoAnalysis.Labels.Count > 0)
+                            {
+                                <div class="mb-3">
+                                    <div class="text-muted small mb-2">
+                                        <i class="bi bi-tags me-1"></i>Detected Visual Labels
+                                    </div>
+                                    @foreach (var lbl in _session.VideoAnalysis.Labels.OrderByDescending(l => l.Confidence))
+                                    {
+                                        <div class="d-flex justify-content-between small mb-1">
+                                            <span>@lbl.Description</span>
+                                            <span class="text-muted">@lbl.Confidence.ToString("P0")</span>
+                                        </div>
+                                        <div class="progress mb-2" style="height:5px">
+                                            <div class="progress-bar bg-secondary"
+                                                 style="width:@((lbl.Confidence * 100).ToString("F0"))%"></div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                            <div class="text-muted" style="font-size:.7rem">
+                                <i class="bi bi-clock me-1"></i>
+                                Analyzed @_session.VideoAnalysis.AnalyzedAt.ToString("MMM d, yyyy HH:mm") @_session.VideoAnalysis.AnalyzedAtTimeZone
+                            </div>
+                        </div>
+                    </div>
+                }
+                else if (_session.Status == "Completed")
+                {
+                    <div class="card mb-4 border-0 shadow-sm">
+                        <div class="card-body text-muted text-center py-4 small">
+                            <i class="bi bi-camera-video fs-4 d-block mb-2"></i>
+                            Video analysis not enabled for this session.
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private SessionDetailDto? _session;
+    private bool _loading = true;
+    private string? _error;
+    // AC-6.1.3: transcript expanded by default
+    private bool _showTranscript = true;
+    private int? _highlightedSegmentIndex;
+    private string _transcriptSearch = string.Empty;
+    private string? _timelineFilter;
+    private CancellationTokenSource? _pollCts;
+
+    // ── Processing pipeline stage definitions (AC-6.1.5) ────────────────────
+    private sealed record PipelineStage(string Key, string Label);
+    private static readonly List<PipelineStage> ProcessingStages =
+    [
+        new("Uploaded",    "Uploaded"),
+        new("Processing",  "Extracting"),
+        new("Transcribing","Transcribing"),
+        new("Analyzing",   "Analyzing"),
+    ];
+
+    // ── Story 6.2: Timeline markers ────────────────────────────────────────
+    private sealed record TimelineMarker(
+        TimeSpan Timestamp,
+        string Label,
+        string Color,
+        string Icon,
+        int? SegmentIndex);
+
+    private IEnumerable<TimelineMarker> TimelineMarkers
+    {
+        get
+        {
+            if (_session is null) yield break;
+            var total = _session.Duration?.TotalSeconds ?? 0;
+            if (total <= 0) yield break;
+
+            // AC-6.2.1 / AC-6.2.2 / AC-6.2.3: derive markers from signals
+            foreach (var sig in _session.Signals.OrderBy(s => s.Timestamp))
+            {
+                var seg = _session.Transcript
+                    .OrderBy(t => Math.Abs((t.StartTime - sig.Timestamp).TotalSeconds))
+                    .FirstOrDefault();
+
+                var (color, icon, label) = sig.SignalType switch
+                {
+                    "ConfusionIndicator"    => ("danger",  "bi-question-circle-fill", "Confusion"),
+                    "EngagementIndicator"   => ("success", "bi-lightning-charge-fill", "Engagement"),
+                    "AttentionIndicator"    => ("info",    "bi-eye-fill",              "Attention"),
+                    "ComprehensionIndicator"=> ("primary", "bi-lightbulb-fill",        "Comprehension"),
+                    "FrustrationIndicator" => ("warning", "bi-emoji-frown-fill",      "Frustration"),
+                    "StimmingIndicator"    => ("secondary","bi-soundwave",            "Self-Regulation"),
+                    _                      => ("secondary","bi-circle-fill",           sig.SignalType)
+                };
+
+                yield return new TimelineMarker(
+                    sig.Timestamp,
+                    $"{label} · {sig.Level}",
+                    color,
+                    icon,
+                    seg?.SequenceIndex);
+            }
+        }
+    }
+
+    private async Task ClickTimelineMarkerAsync(TimelineMarker marker)
+    {
+        if (marker.SegmentIndex is int idx)
+        {
+            _highlightedSegmentIndex = idx;
+            _showTranscript = true;
+            StateHasChanged();
+            await ScrollToSegmentAsync(idx);
+        }
+    }
+
+    private async Task ScrollToSegmentAsync(int segmentIndex)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("scrollSegmentIntoView", $"seg-{segmentIndex}");
+        }
+        catch { /* non-fatal if JS is unavailable */ }
+    }
+
+    private IEnumerable<LearningSignalDto> FilteredSignals =>
+        (_session?.Signals ?? [])
+            .Where(s => _timelineFilter is null || s.SignalType == _timelineFilter)
+            .OrderBy(s => s.Timestamp);
+
+    private IEnumerable<TranscriptSegmentDto> FilteredTranscript =>
+        (_session?.Transcript ?? [])
+            .Where(s => string.IsNullOrEmpty(_transcriptSearch)
+                || s.Text.Contains(_transcriptSearch, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(s => s.SequenceIndex);
+
+    private IEnumerable<string> SignalTypeKeys =>
+        (_session?.Signals ?? []).Select(s => s.SignalType).Distinct().Order();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+
+        // AC-6.1.5: auto-refresh every 10 s while session is in-progress
+        if (IsInProgress(_session?.Status))
+        {
+            _pollCts = new CancellationTokenSource();
+            _ = PollUntilCompleteAsync(_pollCts.Token);
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            var client = HttpClientFactory.CreateClient("CommandCenterApi");
+            _session = await client.GetFromJsonAsync<SessionDetailDto>($"/api/sessions/{Id}");
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load session: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task PollUntilCompleteAsync(CancellationToken ct)
+    {
+        try
+        {
+            while (!ct.IsCancellationRequested && IsInProgress(_session?.Status))
+            {
+                await Task.Delay(TimeSpan.FromSeconds(10), ct);
+                if (ct.IsCancellationRequested) break;
+
+                var client = HttpClientFactory.CreateClient("CommandCenterApi");
+                var updated = await client.GetFromJsonAsync<SessionDetailDto>($"/api/sessions/{Id}", ct);
+                if (updated is not null)
+                    _session = updated;
+
+                await InvokeAsync(StateHasChanged);
+
+                if (!IsInProgress(_session?.Status))
+                    break;
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            // Non-fatal: log and stop polling
+            _error = $"Auto-refresh error: {ex.Message}";
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private static bool IsInProgress(string? status) =>
+        status is "Uploaded" or "Processing" or "Transcribing" or "Analyzing";
+
+    public void Dispose() => _pollCts?.Cancel();
+
+    private async Task JumpToSignal(LearningSignalDto sig)
+    {
+        if (_session?.Transcript.Count > 0)
+        {
+            var nearest = _session.Transcript
+                .OrderBy(t => Math.Abs((t.StartTime - sig.Timestamp).TotalSeconds))
+                .FirstOrDefault();
+            if (nearest is not null)
+            {
+                _highlightedSegmentIndex = nearest.SequenceIndex;
+                _showTranscript = true;
+                StateHasChanged();
+                await ScrollToSegmentAsync(nearest.SequenceIndex);
+            }
+        }
+    }
+
+    // ── Formatting helpers ────────────────────────────────────────────────────
+
+    private static string FormatDuration(TimeSpan t) =>
+        t.TotalHours >= 1 ? t.ToString(@"h\:mm\:ss") : t.ToString(@"m\:ss");
+
+    private static string FormatSignalType(string type) => type switch
+    {
+        "EngagementIndicator"    => "Engagement",
+        "AttentionIndicator"     => "Attention",
+        "ComprehensionIndicator" => "Comprehension",
+        "FrustrationIndicator"   => "Frustration",
+        "ConfusionIndicator"     => "Confusion",
+        "StimmingIndicator"      => "Self-Regulation",
+        _                        => type
+    };
+
+    private static string FormatRecommendationType(string type) => type switch
+    {
+        "PaceAdjustment"     => "Pace",
+        "TopicReview"        => "Review",
+        "BreakSuggestion"    => "Break",
+        "ResourceReference"  => "Resource",
+        "EngagementStrategy" => "Engagement",
+        _                    => type
+    };
+
+    private static RenderFragment HighlightText(string text, string search)
+    {
+        if (string.IsNullOrEmpty(search))
+            return builder => builder.AddContent(0, text);
+
+        return builder =>
+        {
+            int seq = 0;
+            int pos = 0;
+            while (pos < text.Length)
+            {
+                var idx = text.IndexOf(search, pos, StringComparison.OrdinalIgnoreCase);
+                if (idx < 0)
+                {
+                    builder.AddContent(seq++, text[pos..]);
+                    break;
+                }
+                if (idx > pos)
+                    builder.AddContent(seq++, text[pos..idx]);
+
+                builder.OpenElement(seq++, "mark");
+                builder.AddAttribute(seq++, "class", "bg-warning px-0");
+                builder.AddContent(seq++, text.Substring(idx, search.Length));
+                builder.CloseElement();
+                pos = idx + search.Length;
+            }
+        };
+    }
+
+    // ── Badge / colour helpers ────────────────────────────────────────────────
+
+    private static string StatusBadge(string status) => status switch
+    {
+        "Completed"  => "bg-success",
+        "Failed"     => "bg-danger",
+        "Processing" or "Transcribing" or "Analyzing" => "bg-warning text-dark",
+        _ => "bg-secondary"
+    };
+
+    private static string SignalTypeColor(string type) => type switch
+    {
+        "EngagementIndicator"    => "success",
+        "AttentionIndicator"     => "info",
+        "ComprehensionIndicator" => "primary",
+        "FrustrationIndicator"   => "warning",
+        "ConfusionIndicator"     => "danger",
+        "StimmingIndicator"      => "secondary",
+        _                        => "secondary"
+    };
+
+    private static string SignalTypeIcon(string type) => type switch
+    {
+        "EngagementIndicator"    => "bi bi-lightning-charge-fill",
+        "AttentionIndicator"     => "bi bi-eye-fill",
+        "ComprehensionIndicator" => "bi bi-lightbulb-fill",
+        "FrustrationIndicator"   => "bi bi-emoji-frown-fill",
+        "ConfusionIndicator"     => "bi bi-question-circle-fill",
+        "StimmingIndicator"      => "bi bi-soundwave",
+        _                        => "bi bi-circle-fill"
+    };
+
+    private static string SignalTypeBadge(string type) =>
+        $"bg-{SignalTypeColor(type)}{(type is "AttentionIndicator" or "FrustrationIndicator" ? " text-dark" : "")}";
+
+    private static string LevelBadge(string level) => level switch
+    {
+        "High"   => "bg-danger",
+        "Medium" => "bg-warning text-dark",
+        "Low"    => "bg-success",
+        _        => "bg-light text-dark"
+    };
+
+    private static string ConfidenceBar(string level) => level switch
+    {
+        "High"   => "bg-danger",
+        "Medium" => "bg-warning",
+        _        => "bg-success"
+    };
+
+    private static string RecommendationTypeBadge(string type) => type switch
+    {
+        "PaceAdjustment"     => "bg-primary",
+        "TopicReview"        => "bg-info text-dark",
+        "BreakSuggestion"    => "bg-warning text-dark",
+        "ResourceReference"  => "bg-success",
+        "EngagementStrategy" => "bg-secondary",
+        _                    => "bg-light text-dark"
+    };
+
+    // ── Metric card render fragment ───────────────────────────────────────────
+    private RenderFragment MetricCard(string label, double value, string color, string icon, string tooltip) =>
+        __builder =>
+        {
+            <div class="col-sm-6 col-lg-4">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <i class="bi @icon text-@color"></i>
+                            <span class="text-muted small flex-grow-1">@label</span>
+                            <span class="fw-bold fs-5 text-@color">@(value.ToString("P0"))</span>
+                        </div>
+                        <div class="progress mb-2" style="height:8px;border-radius:4px">
+                            <div class="progress-bar bg-@color"
+                                 style="width:@((value * 100).ToString("F0"))%;transition:width .6s ease">
+                            </div>
+                        </div>
+                        <div class="text-muted" style="font-size:.7rem">@tooltip</div>
+                    </div>
+                </div>
+            </div>;
+        };
+
+    // ── Local DTOs ────────────────────────────────────────────────────────────
+    private record SessionDetailDto(
+        Guid Id, string Title, string LearnerName, string? Description,
+        string Status, DateTimeOffset CreatedAt, string CreatedAtTimeZone,
+        DateTimeOffset? ProcessedAt, string? ProcessedAtTimeZone,
+        TimeSpan? Duration, string? ContentType, string? ErrorMessage,
+        List<TranscriptSegmentDto> Transcript,
+        List<LearningSignalDto> Signals,
+        List<RecommendationDto> Recommendations,
+        SessionMetricsDto? Metrics,
+        SessionAnalysisDto? Analysis,
+        VideoAnalysisDto? VideoAnalysis);
+
+    private record TranscriptSegmentDto(
+        int SequenceIndex, TimeSpan StartTime, TimeSpan EndTime,
+        string Text, double Confidence, string? SpeakerTag);
+
+    private record LearningSignalDto(
+        TimeSpan Timestamp, string SignalType, string Level,
+        double ConfidenceScore, string? Notes, string? SourceEvidence);
+
+    private record RecommendationDto(
+        string Title, string Body, string Type, int Priority,
+        DateTimeOffset GeneratedAt, string GeneratedAtTimeZone);
+
+    private record SessionMetricsDto(
+        double EngagementScore, double AttentionScore, double FrustrationScore,
+        double ConfusionScore, double ComprehensionScore,
+        int TotalWordsSpoken, double SpeakingRateWordsPerMinute,
+        int PauseCount, TimeSpan TotalPauseDuration,
+        int QuestionCount, int FillerWordCount,
+        DateTimeOffset ComputedAt, string ComputedAtTimeZone,
+        double SessionHealthScore);
+
+    private record SessionAnalysisDto(
+        string Summary, string KeyTopics, string LearningObjectivesInferred,
+        string StrengthsObserved, string AreasForImprovement,
+        string NextSteps, bool InsufficientData,
+        string ModelVersion, DateTimeOffset AnalyzedAt, string AnalyzedAtTimeZone);
+
+    private record VideoAnalysisDto(
+        List<VideoLabelDto> Labels, List<VideoShotDto> Shots,
+        DateTimeOffset AnalyzedAt, string AnalyzedAtTimeZone);
+
+    private record VideoLabelDto(string Description, double Confidence);
+    private record VideoShotDto(TimeSpan StartTime, TimeSpan EndTime);
+}

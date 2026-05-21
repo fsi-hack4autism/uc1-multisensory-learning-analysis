@@ -1,0 +1,154 @@
+﻿using System.Text.Json;
+using CommandCenter.Domain.Entities;
+using CommandCenter.Domain.Interfaces;
+using Google.Cloud.AIPlatform.V1;
+using Wkt = Google.Protobuf.WellKnownTypes;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+
+namespace CommandCenter.Infrastructure.Services;
+
+public sealed class GeminiRecommendationService : IRecommendationService
+{
+    private readonly PredictionServiceClient _client;
+    private readonly string _projectId;
+    private readonly string _location;
+    private readonly string _modelId;
+    private readonly ILogger<GeminiRecommendationService> _logger;
+
+    public GeminiRecommendationService(IConfiguration config, ILogger<GeminiRecommendationService> logger)
+    {
+        _projectId = config["GcpProjectId"] ?? throw new InvalidOperationException("GcpProjectId is required.");
+        _location = config["Gemini:Location"] ?? "us-central1";
+        _modelId = config["Gemini:ModelId"] ?? "gemini-2.0-flash-001";
+        _client = new PredictionServiceClientBuilder
+        {
+            Endpoint = $"{_location}-aiplatform.googleapis.com"
+        }.Build();
+        _logger = logger;
+    }
+
+    public async Task<List<Recommendation>> GenerateAsync(
+        Guid sessionId, SessionAnalysis analysis, SessionMetrics metrics, CancellationToken ct = default)
+    {
+        _logger.LogInformation("Generating recommendations for session {SessionId}", sessionId);
+
+        var endpoint = $"projects/{_projectId}/locations/{_location}/publishers/google/models/{_modelId}";
+
+        var prompt = $$"""
+            Based on the following learning session analysis and metrics, generate 3-5 actionable recommendations for the educator or learner.
+
+            ANALYSIS SUMMARY: {{analysis.Summary}}
+            KEY TOPICS: {{analysis.KeyTopics}}
+            STRENGTHS: {{analysis.StrengthsObserved}}
+            AREAS FOR IMPROVEMENT: {{analysis.AreasForImprovement}}
+            METRICS:
+              - Engagement score: {{metrics.OverallEngagementScore:P0}}
+              - Attention score: {{metrics.OverallAttentionScore:P0}}
+              - Speaking rate: {{metrics.SpeakingRateWordsPerMinute:N0}} words/min
+              - Pause count: {{metrics.PauseCount}}
+              - Questions asked: {{metrics.QuestionCount}}
+
+            Return ONLY a JSON array (no markdown):
+            [
+              {
+                "title": "Short title",
+                "body": "Detailed actionable recommendation",
+                "type": "PaceAdjustment|TopicReview|BreakSuggestion|ResourceReference|EngagementStrategy",
+                "priority": 1
+              }
+            ]
+            """;
+
+        var request = new PredictRequest
+        {
+            EndpointAsEndpointName = EndpointName.Parse(endpoint),
+            Instances =
+            {
+                Wkt.Value.ForStruct(new Wkt.Struct
+                {
+                    Fields =
+                    {
+                        ["contents"] = Wkt.Value.ForList(
+                            Wkt.Value.ForStruct(new Wkt.Struct
+                            {
+                                Fields =
+                                {
+                                    ["role"] = Wkt.Value.ForString("user"),
+                                    ["parts"] = Wkt.Value.ForList(
+                                        Wkt.Value.ForStruct(new Wkt.Struct { Fields = { ["text"] = Wkt.Value.ForString(prompt) } })
+                                    )
+                                }
+                            })
+                        )
+                    }
+                })
+            }
+        };
+
+        PredictResponse response;
+        try
+        {
+            response = await _client.PredictAsync(request, cancellationToken: ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Gemini recommendation generation failed for session {SessionId}", sessionId);
+            return [];
+        }
+
+        return ParseRecommendations(sessionId, ExtractText(response));
+    }
+
+    private List<Recommendation> ParseRecommendations(Guid sessionId, string rawText)
+    {
+        var recommendations = new List<Recommendation>();
+        try
+        {
+            var start = rawText.IndexOf('[');
+            var end = rawText.LastIndexOf(']');
+            if (start < 0 || end <= start) return recommendations;
+
+            var json = rawText[start..(end + 1)];
+            using var doc = JsonDocument.Parse(json);
+            int priority = 1;
+            foreach (var item in doc.RootElement.EnumerateArray())
+            {
+                if (!System.Enum.TryParse<RecommendationType>(item.GetStringOrDefault("type"), out var recType))
+                    recType = RecommendationType.EngagementStrategy;
+
+                recommendations.Add(new Recommendation
+                {
+                    SessionId = sessionId,
+                    Title = item.GetStringOrDefault("title"),
+                    Body = item.GetStringOrDefault("body"),
+                    Type = recType,
+                    Priority = item.TryGetProperty("priority", out var p) ? p.GetInt32() : priority,
+                    GeneratedAt = DateTimeOffset.UtcNow
+                });
+                priority++;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to parse recommendation response for session {SessionId}", sessionId);
+        }
+        return recommendations;
+    }
+
+    private static string ExtractText(PredictResponse response)
+    {
+        try
+        {
+            var prediction = response.Predictions.FirstOrDefault();
+            if (prediction is null) return string.Empty;
+            var candidates = prediction.StructValue.Fields.GetValueOrDefault("candidates");
+            var content = candidates?.ListValue.Values.FirstOrDefault()
+                ?.StructValue.Fields.GetValueOrDefault("content");
+            var parts = content?.StructValue.Fields.GetValueOrDefault("parts");
+            return parts?.ListValue.Values.FirstOrDefault()
+                ?.StructValue.Fields.GetValueOrDefault("text")?.StringValue ?? string.Empty;
+        }
+        catch { return string.Empty; }
+    }
+}

@@ -1,0 +1,169 @@
+﻿using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
+using CommandCenter.Application.DTOs;
+using CommandCenter.Domain.Entities;
+using CommandCenter.Domain.Interfaces;
+using CommandCenter.Infrastructure.Persistence;
+using FluentAssertions;
+using Microsoft.Extensions.DependencyInjection;
+using Moq;
+
+namespace CommandCenter.IntegrationTests;
+
+public sealed class SessionsApiTests : IClassFixture<CommandCenterApiFactory>
+{
+    private readonly CommandCenterApiFactory _factory;
+    private readonly HttpClient _client;
+
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
+    public SessionsApiTests(CommandCenterApiFactory factory)
+    {
+        _factory = factory;
+        _client = factory.CreateClient();
+    }
+
+    // ── GET /api/sessions ─────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task GetSessions_EmptyDatabase_ReturnsEmptyPagedResult()
+    {
+        var response = await _client.GetAsync("/api/sessions?page=1&pageSize=10");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await response.Content.ReadFromJsonAsync<PagedResult<SessionSummaryDto>>(JsonOptions);
+        result.Should().NotBeNull();
+        result!.Items.Should().BeEmpty();
+        result.TotalCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task GetSessions_WithSeededSessions_ReturnsCorrectCount()
+    {
+        await SeedSessionAsync("Reading Session", "Alex");
+        await SeedSessionAsync("Math Session", "Sam");
+
+        var response = await _client.GetAsync("/api/sessions?page=1&pageSize=10");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await response.Content.ReadFromJsonAsync<PagedResult<SessionSummaryDto>>(JsonOptions);
+        result!.TotalCount.Should().BeGreaterThanOrEqualTo(2);
+    }
+
+    [Fact]
+    public async Task GetSessions_Pagination_RespectsPageSize()
+    {
+        for (int i = 0; i < 5; i++)
+            await SeedSessionAsync($"Session {i}", "Learner");
+
+        var response = await _client.GetAsync("/api/sessions?page=1&pageSize=2");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await response.Content.ReadFromJsonAsync<PagedResult<SessionSummaryDto>>(JsonOptions);
+        result!.Items.Should().HaveCount(2);
+        result.PageSize.Should().Be(2);
+    }
+
+    // ── GET /api/sessions/{id} ────────────────────────────────────────────────
+
+    [Fact]
+    public async Task GetSession_ExistingId_ReturnsDetail()
+    {
+        var sessionId = await SeedSessionAsync("Detail Test Session", "Jordan");
+
+        var response = await _client.GetAsync($"/api/sessions/{sessionId}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var dto = await response.Content.ReadFromJsonAsync<SessionDetailDto>(JsonOptions);
+        dto.Should().NotBeNull();
+        dto!.Title.Should().Be("Detail Test Session");
+        dto.LearnerName.Should().Be("Jordan");
+        dto.CreatedAtTimeZone.Should().Be("UTC");
+    }
+
+    [Fact]
+    public async Task GetSession_NonExistentId_Returns404()
+    {
+        var response = await _client.GetAsync($"/api/sessions/{Guid.NewGuid()}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    // ── POST /api/sessions/upload ─────────────────────────────────────────────
+
+    [Fact]
+    public async Task UploadSession_ValidAudioFile_Returns201WithSession()
+    {
+        _factory.StorageMock
+            .Setup(s => s.UploadAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("gs://bucket/sessions/test.mp3");
+
+        _factory.PubSubMock
+            .Setup(p => p.PublishAsync(It.IsAny<string>(), It.IsAny<object>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        using var content = new MultipartFormDataContent();
+        var fileBytes = new byte[] { 0xFF, 0xFB, 0x90, 0x00 }; // fake MP3 header
+        content.Add(new ByteArrayContent(fileBytes) { Headers = { ContentType = new("audio/mpeg") } }, "file", "test.mp3");
+
+        var url = "/api/sessions/upload?title=Test+Upload&learnerName=Alex";
+        var response = await _client.PostAsync(url, content);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        var dto = await response.Content.ReadFromJsonAsync<SessionSummaryDto>(JsonOptions);
+        dto.Should().NotBeNull();
+        dto!.Title.Should().Be("Test Upload");
+        dto.LearnerName.Should().Be("Alex");
+        dto.Status.Should().Be("Uploaded");
+        dto.CreatedAtTimeZone.Should().Be("UTC");
+
+        _factory.PubSubMock.Verify(
+            p => p.PublishAsync(It.IsAny<string>(), It.IsAny<object>(), It.IsAny<CancellationToken>()),
+            Times.AtLeastOnce);
+    }
+
+    [Fact]
+    public async Task UploadSession_MissingFile_Returns400()
+    {
+        using var content = new MultipartFormDataContent();
+        var response = await _client.PostAsync(
+            "/api/sessions/upload?title=No+File&learnerName=Alex", content);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private async Task<Guid> SeedSessionAsync(string title, string learnerName)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var session = new LearningSession
+        {
+            Title = title,
+            LearnerName = learnerName,
+            Status = SessionStatus.Completed
+        };
+        db.LearningSessions.Add(session);
+        await db.SaveChangesAsync();
+        return session.Id;
+    }
+
+    // ── Local DTOs (mirror API contract) ─────────────────────────────────────
+
+    private record SessionSummaryDto(
+        Guid Id, string Title, string LearnerName, string Status,
+        DateTimeOffset CreatedAt, string CreatedAtTimeZone,
+        double? EngagementScore, double? AttentionScore, int? SignalCount);
+
+    private record SessionDetailDto(
+        Guid Id, string Title, string LearnerName, string? Description,
+        string Status, DateTimeOffset CreatedAt, string CreatedAtTimeZone,
+        DateTimeOffset? ProcessedAt, string? ProcessedAtTimeZone,
+        TimeSpan? Duration, string? ContentType, string? ErrorMessage,
+        List<object> Transcript, List<object> Signals, List<object> Recommendations,
+        object? Metrics, object? Analysis, object? VideoAnalysis);
+
+    private record PagedResult<T>(List<T> Items, int TotalCount, int Page, int PageSize);
+}

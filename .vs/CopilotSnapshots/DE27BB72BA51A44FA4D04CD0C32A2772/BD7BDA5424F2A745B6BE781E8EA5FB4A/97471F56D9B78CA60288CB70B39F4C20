@@ -1,0 +1,246 @@
+﻿@page "/"
+@rendermode InteractiveServer
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>Learning Command Center</PageTitle>
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0">Learning Command Center</h1>
+        <button class="btn btn-primary" @onclick="ShowUploadModal">
+            <span>&#43;</span> Upload Session
+        </button>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="d-flex justify-content-center py-5">
+            <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading…</span></div>
+        </div>
+    }
+    else if (_error is not null)
+    {
+        <div class="alert alert-danger">@_error</div>
+    }
+    else
+    {
+        <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-4 mb-4">
+            @foreach (var s in _sessions)
+            {
+                <div class="col">
+                    <div class="card h-100 shadow-sm">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h5 class="card-title mb-0">@s.Title</h5>
+                                <span class="badge @StatusBadge(s.Status)">@s.Status</span>
+                            </div>
+                            <p class="text-muted small mb-2">@s.LearnerName</p>
+                            <p class="text-muted small mb-3">
+                                @s.CreatedAt.ToString("MMM d, yyyy HH:mm") @s.CreatedAtTimeZone
+                            </p>
+                            @if (s.EngagementScore.HasValue)
+                            {
+                                <div class="mb-1">
+                                    <div class="d-flex justify-content-between small mb-1">
+                                        <span class="text-muted">Session Health</span>
+                                        @{
+                                            var health = (s.EngagementScore.Value * 0.35 + (s.AttentionScore ?? 0) * 0.25);
+                                            var healthColor = health >= 0.75 ? "success" : health >= 0.50 ? "warning" : "danger";
+                                        }
+                                        <span class="fw-semibold text-@healthColor">@((health * 100).ToString("F0"))%</span>
+                                    </div>
+                                    <small class="text-muted">Engagement (learning signal)</small>
+                                    <div class="progress mb-1" style="height:6px">
+                                        <div class="progress-bar bg-success"
+                                             style="width:@((s.EngagementScore.Value * 100).ToString("F0"))%">
+                                        </div>
+                                    </div>
+                                    <small class="text-muted">Attention (learning signal)</small>
+                                    <div class="progress mb-2" style="height:6px">
+                                        <div class="progress-bar bg-info"
+                                             style="width:@((s.AttentionScore!.Value * 100).ToString("F0"))%">
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                            @if (s.SignalCount.HasValue && s.SignalCount.Value > 0)
+                            {
+                                <div class="small text-muted">&#128202; @s.SignalCount.Value learning signal(s) detected</div>
+                            }
+                        </div>
+                        <div class="card-footer bg-transparent border-0">
+                            <a href="/sessions/@s.Id" class="btn btn-sm btn-outline-primary w-100">View Details</a>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        @if (_totalCount > _pageSize)
+        {
+            <nav>
+                <ul class="pagination justify-content-center">
+                    <li class="page-item @(_page <= 1 ? "disabled" : "")">
+                        <button class="page-link" @onclick="PrevPage">Previous</button>
+                    </li>
+                    <li class="page-item disabled">
+                        <span class="page-link">Page @_page of @TotalPages</span>
+                    </li>
+                    <li class="page-item @(_page >= TotalPages ? "disabled" : "")">
+                        <button class="page-link" @onclick="NextPage">Next</button>
+                    </li>
+                </ul>
+            </nav>
+        }
+    }
+
+    @if (_showUpload)
+    {
+        <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Upload Learning Session</h5>
+                        <button type="button" class="btn-close" @onclick="CloseUploadModal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Title</label>
+                            <input class="form-control" @bind="_uploadTitle" placeholder="Session title" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Learner Name</label>
+                            <input class="form-control" @bind="_uploadLearner" placeholder="Learner name" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Description (optional)</label>
+                            <textarea class="form-control" rows="2" @bind="_uploadDesc"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Media File (audio or video)</label>
+                            <InputFile class="form-control" OnChange="FileSelected" accept="audio/*,video/*" />
+                        </div>
+                        @if (_uploadError is not null)
+                        {
+                            <div class="alert alert-danger py-2">@_uploadError</div>
+                        }
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="CloseUploadModal">Cancel</button>
+                        <button class="btn btn-primary" @onclick="SubmitUpload" disabled="@_uploading">
+                            @if (_uploading) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                            Upload
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<SessionSummaryDto> _sessions = [];
+    private bool _loading = true;
+    private string? _error;
+    private int _page = 1;
+    private int _pageSize = 12;
+    private int _totalCount = 0;
+    private int TotalPages => (int)Math.Ceiling((double)_totalCount / _pageSize);
+
+    private bool _showUpload;
+    private bool _uploading;
+    private string _uploadTitle = "";
+    private string _uploadLearner = "";
+    private string? _uploadDesc;
+    private IBrowserFile? _selectedFile;
+    private string? _uploadError;
+
+    protected override async Task OnInitializedAsync() => await LoadSessionsAsync();
+
+    private async Task LoadSessionsAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            var client = HttpClientFactory.CreateClient("CommandCenterApi");
+            var result = await client.GetFromJsonAsync<PagedResult<SessionSummaryDto>>(
+                $"/api/sessions?page={_page}&pageSize={_pageSize}");
+            _sessions = result?.Items ?? [];
+            _totalCount = result?.TotalCount ?? 0;
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load sessions: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task PrevPage() { if (_page > 1) { _page--; await LoadSessionsAsync(); } }
+    private async Task NextPage() { if (_page < TotalPages) { _page++; await LoadSessionsAsync(); } }
+
+    private void ShowUploadModal() { _showUpload = true; _uploadError = null; }
+    private void CloseUploadModal() => _showUpload = false;
+    private void FileSelected(InputFileChangeEventArgs e) => _selectedFile = e.File;
+
+    private async Task SubmitUpload()
+    {
+        if (string.IsNullOrWhiteSpace(_uploadTitle) || string.IsNullOrWhiteSpace(_uploadLearner) || _selectedFile is null)
+        {
+            _uploadError = "Title, learner name, and a file are required.";
+            return;
+        }
+
+        _uploading = true;
+        _uploadError = null;
+        try
+        {
+            var client = HttpClientFactory.CreateClient("CommandCenterApi");
+            using var content = new MultipartFormDataContent();
+            using var stream = _selectedFile.OpenReadStream(maxAllowedSize: 500 * 1024 * 1024);
+            content.Add(new StreamContent(stream), "file", _selectedFile.Name);
+
+            var url = $"/api/sessions/upload?title={Uri.EscapeDataString(_uploadTitle)}" +
+                      $"&learnerName={Uri.EscapeDataString(_uploadLearner)}" +
+                      (_uploadDesc is not null ? $"&description={Uri.EscapeDataString(_uploadDesc)}" : "");
+            var response = await client.PostAsync(url, content);
+            if (!response.IsSuccessStatusCode)
+            {
+                _uploadError = $"Upload failed: {response.StatusCode}";
+                return;
+            }
+
+            _showUpload = false;
+            _page = 1;
+            await LoadSessionsAsync();
+        }
+        catch (Exception ex)
+        {
+            _uploadError = $"Upload error: {ex.Message}";
+        }
+        finally
+        {
+            _uploading = false;
+        }
+    }
+
+    private static string StatusBadge(string status) => status switch
+    {
+        "Completed" => "bg-success",
+        "Failed" => "bg-danger",
+        "Processing" or "Transcribing" or "Analyzing" => "bg-warning text-dark",
+        _ => "bg-secondary"
+    };
+
+    // ── DTOs mirrored from Application layer ─────────────────────────────────
+    private record SessionSummaryDto(
+        Guid Id, string Title, string LearnerName, string Status,
+        DateTimeOffset CreatedAt, string CreatedAtTimeZone,
+        double? EngagementScore, double? AttentionScore, int? SignalCount);
+
+    private record PagedResult<T>(List<T> Items, int TotalCount, int Page, int PageSize);
+}
+

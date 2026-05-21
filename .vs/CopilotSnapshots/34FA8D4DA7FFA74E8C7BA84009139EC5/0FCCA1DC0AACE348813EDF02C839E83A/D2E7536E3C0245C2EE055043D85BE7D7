@@ -1,0 +1,111 @@
+﻿using CommandCenter.Application.DTOs;
+using CommandCenter.Domain.Entities;
+
+namespace CommandCenter.Application.Mapping;
+
+public static class SessionMapper
+{
+    private const string Utc = "UTC";
+
+    /// <summary>
+    /// Weighted health score: engagement 35%, attention 25%, comprehension 25%,
+    /// frustration −15%, confusion −10%. Clamped to [0, 1].
+    /// </summary>
+    private static double? ComputeHealthScore(SessionMetrics? m)
+    {
+        if (m is null) return null;
+        return Math.Clamp(
+            (m.OverallEngagementScore * 0.35)
+            + (m.OverallAttentionScore * 0.25)
+            + (m.OverallComprehensionScore * 0.25)
+            - (m.OverallFrustrationScore * 0.15)
+            - (m.OverallConfusionScore * 0.10),
+            0.0, 1.0);
+    }
+
+    public static SessionSummaryDto ToSummary(LearningSession s) => new(
+        s.Id,
+        s.Title,
+        s.LearnerName,
+        s.Status.ToString(),
+        s.CreatedAt,
+        Utc,
+        s.Metrics?.OverallEngagementScore,
+        s.Metrics?.OverallAttentionScore,
+        ComputeHealthScore(s.Metrics),
+        s.LearningSignals?.Count,
+        s.ErrorMessage);
+
+    public static SessionDetailDto ToDetail(LearningSession s) => new(
+        s.Id,
+        s.Title,
+        s.LearnerName,
+        s.Description,
+        s.Status.ToString(),
+        s.CreatedAt,
+        Utc,
+        s.ProcessedAt,
+        s.ProcessedAt.HasValue ? Utc : null,
+        s.Duration,
+        s.ContentType,
+        s.ErrorMessage,
+        s.TranscriptSegments.Select(ToSegment).ToList(),
+        s.LearningSignals.Select(ToSignal).ToList(),
+        s.Recommendations.Select(ToRecommendation).ToList(),
+        s.Metrics is null ? null : ToMetrics(s.Metrics),
+        s.Analysis is null ? null : ToAnalysis(s.Analysis),
+        s.VideoAnalysis is null ? null : ToVideoAnalysis(s.VideoAnalysis));
+
+    private static TranscriptSegmentDto ToSegment(TranscriptSegment t) => new(
+        t.SequenceIndex, t.StartTime, t.EndTime, t.Text, t.Confidence, t.SpeakerTag);
+
+    private static LearningSignalDto ToSignal(LearningSignal l) => new(
+        l.Timestamp, l.SignalType.ToString(), l.Level.ToString(), l.ConfidenceScore, l.Notes, l.SourceEvidence);
+
+    private static RecommendationDto ToRecommendation(Recommendation r) => new(
+        r.Title, r.Body, r.Type.ToString(), r.Priority, r.GeneratedAt, Utc);
+
+    private static SessionMetricsDto ToMetrics(SessionMetrics m)
+    {
+        var health = ComputeHealthScore(m)!.Value;
+
+        return new(
+            m.OverallEngagementScore,
+            m.OverallAttentionScore,
+            m.OverallFrustrationScore,
+            m.OverallConfusionScore,
+            m.OverallComprehensionScore,
+            m.TotalWordsSpoken,
+            m.SpeakingRateWordsPerMinute,
+            m.PauseCount,
+            m.TotalPauseDuration,
+            m.QuestionCount,
+            m.FillerWordCount,
+            m.ComputedAt,
+            Utc,
+            health,
+            m.ParticipationScore,
+            m.EnergyLevel,
+            m.InstructorTalkRatio,
+            m.LearnerTalkRatio,
+            m.MetricsConfidenceLevel);
+    }
+
+    private static SessionAnalysisDto ToAnalysis(SessionAnalysis a) => new(
+        a.Summary,
+        a.KeyTopics,
+        a.LearningObjectivesInferred,
+        a.StrengthsObserved,
+        a.AreasForImprovement,
+        a.NextSteps,
+        a.InsufficientData,
+        a.ModelVersion,
+        a.AnalyzedAt,
+        Utc);
+
+    private static VideoAnalysisDto ToVideoAnalysis(VideoAnalysisResult v) => new(
+        v.Labels.Select(l => new VideoLabelDto(l.Description, l.Confidence)).ToList(),
+        v.Shots.Select(s => new VideoShotDto(s.StartTime, s.EndTime)).ToList(),
+        v.AnalyzedAt,
+        Utc);
+}

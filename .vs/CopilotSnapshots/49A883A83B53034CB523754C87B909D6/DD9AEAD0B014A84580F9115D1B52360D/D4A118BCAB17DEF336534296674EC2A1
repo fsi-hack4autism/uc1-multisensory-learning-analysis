@@ -1,0 +1,57 @@
+﻿using CommandCenter.Domain.Interfaces;
+using CommandCenter.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Moq;
+
+namespace CommandCenter.IntegrationTests;
+
+/// <summary>
+/// Custom WebApplicationFactory that replaces EF Core (PostgreSQL → InMemory)
+/// and stubs out all GCP services so tests run without cloud connectivity.
+/// </summary>
+public sealed class CommandCenterApiFactory : WebApplicationFactory<Program>
+{
+    public Mock<IStorageService> StorageMock { get; } = new();
+    public Mock<IPubSubService> PubSubMock { get; } = new();
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        builder.UseEnvironment("Testing");
+
+        builder.ConfigureServices(services =>
+        {
+            // Remove ALL DbContext registrations (including Npgsql provider internals)
+            var toRemove = services
+                .Where(d =>
+                    d.ServiceType == typeof(DbContextOptions<ApplicationDbContext>) ||
+                    d.ServiceType == typeof(DbContextOptions) ||
+                    (d.ServiceType.IsGenericType &&
+                     d.ServiceType.GetGenericTypeDefinition() == typeof(DbContextOptions<>)))
+                .ToList();
+            foreach (var d in toRemove) services.Remove(d);
+
+            services.AddDbContext<ApplicationDbContext>(options =>
+                options.UseInMemoryDatabase("IntegrationTestDb_" + Guid.NewGuid()));
+
+            // Replace GCP singletons with mocks
+            ReplaceWithMock<IStorageService>(services, StorageMock.Object);
+            ReplaceWithMock<IPubSubService>(services, PubSubMock.Object);
+            ReplaceWithMock<ISpeechTranscriptionService>(services, new Mock<ISpeechTranscriptionService>().Object);
+            ReplaceWithMock<IStimmingAnalysisService>(services, new Mock<IStimmingAnalysisService>().Object);
+            ReplaceWithMock<IAnalysisService>(services, new Mock<IAnalysisService>().Object);
+            ReplaceWithMock<IRecommendationService>(services, new Mock<IRecommendationService>().Object);
+            ReplaceWithMock<IVideoIntelligenceService>(services, new Mock<IVideoIntelligenceService>().Object);
+        });
+    }
+
+    private static void ReplaceWithMock<TService>(IServiceCollection services, TService instance)
+        where TService : class
+    {
+        var existing = services.Where(d => d.ServiceType == typeof(TService)).ToList();
+        foreach (var d in existing) services.Remove(d);
+        services.AddSingleton(instance);
+    }
+}

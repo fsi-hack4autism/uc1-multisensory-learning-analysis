@@ -1,0 +1,18 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using CommandCenter.Domain.Entities;
+
+namespace CommandCenter.Domain.Interfaces;
+
+public interface IRecommendationService
+{
+    Task<List<Recommendation>> GenerateAsync(
+        Guid sessionId,
+        SessionAnalysis analysis,
+        SessionMetrics metrics,
+        List<LearningSignal> signals,
+        double? videoConfidence,
+        CancellationToken ct = default);
+}

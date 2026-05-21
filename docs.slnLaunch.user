@@ -1,0 +1,15 @@
+[
+  {
+    "Name": "App",
+    "Projects": [
+      {
+        "Path": "CommandCenter\\src\\CommandCenter.Api\\CommandCenter.Api.csproj",
+        "Action": "Start"
+      },
+      {
+        "Path": "CommandCenter\\src\\CommandCenter.Web\\CommandCenter.Web.csproj",
+        "Action": "Start"
+      }
+    ]
+  }
+]

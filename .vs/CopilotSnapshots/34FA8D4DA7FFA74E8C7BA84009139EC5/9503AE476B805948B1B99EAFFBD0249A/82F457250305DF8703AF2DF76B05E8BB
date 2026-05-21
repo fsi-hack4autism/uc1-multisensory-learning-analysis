@@ -1,0 +1,73 @@
+﻿using CommandCenter.Domain.Entities;
+using CommandCenter.Domain.Interfaces;
+using Microsoft.Extensions.Logging;
+
+namespace CommandCenter.Infrastructure.Services;
+
+public sealed class MetricsEngine : IMetricsEngine
+{
+    private readonly ILogger<MetricsEngine> _logger;
+
+    private static readonly HashSet<string> FillerWords =
+        new(StringComparer.OrdinalIgnoreCase) { "um", "uh", "like", "you know", "basically", "literally", "actually", "so", "right" };
+
+    public MetricsEngine(ILogger<MetricsEngine> logger) => _logger = logger;
+
+    public SessionMetrics Compute(Guid sessionId, List<TranscriptSegment> segments, List<LearningSignal> signals)
+    {
+        _logger.LogInformation("Computing metrics for session {SessionId}", sessionId);
+
+        var allWords = segments.SelectMany(s => s.Text.Split(' ', StringSplitOptions.RemoveEmptyEntries)).ToList();
+        var totalWords = allWords.Count;
+        var fillerCount = allWords.Count(w => FillerWords.Contains(w.Trim('.', ',', '?', '!')));
+        var questionCount = segments.Count(s => s.Text.TrimEnd().EndsWith('?'));
+
+        var totalDuration = segments.Count > 0
+            ? segments.Max(s => s.EndTime) - segments.Min(s => s.StartTime)
+            : TimeSpan.Zero;
+        var speakingRate = totalDuration.TotalMinutes > 0 ? totalWords / totalDuration.TotalMinutes : 0;
+
+        // Pause detection: gaps > 2 seconds between consecutive segments
+        var pauseCount = 0;
+        var totalPauseDuration = TimeSpan.Zero;
+        for (int i = 1; i < segments.Count; i++)
+        {
+            var gap = segments[i].StartTime - segments[i - 1].EndTime;
+            if (gap.TotalSeconds >= 2)
+            {
+                pauseCount++;
+                totalPauseDuration += gap;
+            }
+        }
+
+        // Score signals into 0-1 range using weighted averages
+        static double ScoreSignals(List<LearningSignal> sigs, SignalType type)
+        {
+            var relevant = sigs.Where(s => s.SignalType == type).ToList();
+            if (relevant.Count == 0) return 0.5;
+            return relevant.Average(s => s.Level switch
+            {
+                SignalLevel.High => s.ConfidenceScore,
+                SignalLevel.Medium => s.ConfidenceScore * 0.6,
+                _ => s.ConfidenceScore * 0.3
+            });
+        }
+
+        return new SessionMetrics
+        {
+            SessionId = sessionId,
+            OverallEngagementScore = Math.Clamp(ScoreSignals(signals, SignalType.EngagementIndicator), 0, 1),
+            OverallAttentionScore = Math.Clamp(ScoreSignals(signals, SignalType.AttentionIndicator), 0, 1),
+            OverallFrustrationScore = Math.Clamp(ScoreSignals(signals, SignalType.FrustrationIndicator), 0, 1),
+            OverallConfusionScore = Math.Clamp(ScoreSignals(signals, SignalType.ConfusionIndicator), 0, 1),
+            OverallComprehensionScore = Math.Clamp(ScoreSignals(signals, SignalType.ComprehensionIndicator), 0, 1),
+            TotalWordsSpoken = totalWords,
+            SpeakingRateWordsPerMinute = speakingRate,
+            PauseCount = pauseCount,
+            TotalPauseDuration = totalPauseDuration,
+            QuestionCount = questionCount,
+            FillerWordCount = fillerCount,
+            ComputedAt = DateTimeOffset.UtcNow
+        };
+    }
+}
