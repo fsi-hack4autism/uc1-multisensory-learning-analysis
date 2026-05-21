@@ -100,6 +100,15 @@ def adapt_visual_signals(visual_signals):
     ]
 
 
+def resolve_emotion_timestamp(emotion):
+    timestamps = emotion.get("timestamps") or []
+
+    if not timestamps:
+        return "00:00"
+
+    return timestamps[0].get("start","00:00")
+
+
 def adapt_analysis_response(response,learner_baseline=None,previous_stress_proxy=None):
     """
     Convert Kevin's AnalysisResponse into the internal signal contract used by the
@@ -111,6 +120,8 @@ def adapt_analysis_response(response,learner_baseline=None,previous_stress_proxy
     emotion = response["emotion_overwhelm"]
     scripting = response["echolalia_scripting"]
     context = response["conversational_context"]
+
+    timestamp = resolve_emotion_timestamp(emotion)
 
     stress_proxy = emotion["score"]
     confidence = confidence_to_number(emotion["confidence"])
@@ -138,7 +149,7 @@ def adapt_analysis_response(response,learner_baseline=None,previous_stress_proxy
     )
 
     return {
-        "timestamp": emotion["timestamps"][0]["start"],
+        "timestamp": timestamp,
         "repetition_rate": repetition_rate,
         "baseline_repetition_rate": baseline_repetition_rate,
         "context_shift": context_shift,
@@ -156,7 +167,7 @@ if __name__ == "__main__":
     print(check_health())
 
     response = safe_analyze_file(
-        "stimming.mp3",
+        "London bridge & he's got the whole world.mp3",
         context=None
     )
 
