@@ -1,28 +1,10 @@
 from __future__ import annotations
 
-import copy
 import os
 from typing import Any, Optional
 
-import vertexai
-from vertexai.generative_models import GenerationConfig, GenerativeModel, Part
-
-
-def _inline_refs(schema: dict[str, Any]) -> dict[str, Any]:
-    """Recursively resolve $ref pointers so the Vertex AI SDK (no $defs support) can ingest the schema."""
-    defs = schema.get("$defs", {})
-
-    def _resolve(node: Any) -> Any:
-        if isinstance(node, dict):
-            if "$ref" in node:
-                ref_name = node["$ref"].split("/")[-1]
-                return _resolve(copy.deepcopy(defs[ref_name]))
-            return {k: _resolve(v) for k, v in node.items() if k != "$defs"}
-        if isinstance(node, list):
-            return [_resolve(item) for item in node]
-        return node
-
-    return _resolve(copy.deepcopy(schema))
+from google import genai
+from google.genai import types
 
 from models import (
     AnalysisResponse,
@@ -136,17 +118,20 @@ Analyze the provided audio clip and return structured JSON covering three areas:
 
 {rubric_block}
 
-1. EMOTION/OVERWHELM: Detect signs of emotional overwhelm or distress.
+1. EMOTION/OVERWHELM: Detect signs of emotional overwhelm or distress IN THE CHILD'S SPEECH ONLY.
+   Ignore the therapist's voice entirely for this metric.
    Look for: elevated pitch, rushed or clipped speech, voice breaks, crying, meltdown sounds,
    withdrawal silences, sudden volume changes. Assign score using the rubric bands above.
 
-2. ECHOLALIA/SCRIPTING: Detect repetitive echoing of words or phrases and scripted/memorized speech
-   (TV lines, rote phrases). Classify as immediate (echo within ~2 s), delayed (later reproduction),
-   scripted (memorized media/rote), or none. Apply the detection threshold and confidence rules above.
+2. ECHOLALIA/SCRIPTING: Detect repetitive echoing or scripted/memorized speech IN THE CHILD'S
+   UTTERANCES ONLY. Do not flag repetition or re-reading by the therapist.
+   Classify as immediate (child echoes within ~2 s of therapist), delayed (child reproduces later),
+   scripted (child uses memorized media/rote phrase), or none.
+   Apply the detection threshold and confidence rules above.
 
 3. CONVERSATIONAL CONTEXT: Assess whether the child's responses track the therapist's topic or
    question. Assign score using the rubric bands above. Note any tangential, off-topic, or
-   non-sequitur replies with their timestamps.
+   non-sequitur replies WITH THEIR TIMESTAMPS — evaluate only the child's turns, not the therapist's.
 
 IMPORTANT GUARDRAILS:
 - Do NOT make diagnostic claims or label the child with any condition.
@@ -179,9 +164,10 @@ Apply the same non-diagnostic guardrails.
 class GeminiABAAnalyzer:
     def __init__(self) -> None:
         project = os.environ.get("GOOGLE_CLOUD_PROJECT", "")
-        location = os.environ.get("GCP_LOCATION", "us-central1")
-        vertexai.init(project=project, location=location)
-        self._model = GenerativeModel("gemini-2.5-flash")
+        # Gemini 3.x is served only on the Vertex AI "global" endpoint.
+        location = os.environ.get("GCP_LOCATION", "global")
+        self._client = genai.Client(vertexai=True, project=project, location=location)
+        self._model_name = "gemini-3.5-flash"
 
     def analyze(
         self,
@@ -203,16 +189,17 @@ class GeminiABAAnalyzer:
 
         full_prompt = "".join(prompt_parts)
 
-        generation_config = GenerationConfig(
+        generation_config = types.GenerateContentConfig(
             response_mime_type="application/json",
-            response_schema=_inline_refs(GeminiAnalysisSchema.model_json_schema()),
+            response_schema=GeminiAnalysisSchema,
         )
 
-        media_part = Part.from_data(data=media_bytes, mime_type=mime_type)
+        media_part = types.Part.from_bytes(data=media_bytes, mime_type=mime_type)
 
-        response = self._model.generate_content(
-            [media_part, full_prompt],
-            generation_config=generation_config,
+        response = self._client.models.generate_content(
+            model=self._model_name,
+            contents=[media_part, full_prompt],
+            config=generation_config,
         )
 
         return GeminiAnalysisSchema.model_validate_json(response.text)

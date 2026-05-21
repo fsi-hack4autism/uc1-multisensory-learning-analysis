@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Deploys the ABA Session Analyzer API to Cloud Run.
-# Access is restricted: callers must hold roles/run.invoker on this service.
+# Access is public (no authentication required).
 # Cloud SQL uses private IP only; Cloud Run connects via Serverless VPC Access.
 # Run with: bash deploy.sh
 set -euo pipefail
@@ -144,6 +144,7 @@ gcloud builds submit ./api \
 
 echo ""
 echo "=== [9/9] Deploying to Cloud Run (no public access) ==="
+# GCP_LOCATION=global: Gemini 3.x models are served only on the Vertex AI global endpoint.
 gcloud run deploy "${SERVICE_NAME}" \
   --image="${IMAGE}" \
   --region="${REGION}" \
@@ -151,9 +152,9 @@ gcloud run deploy "${SERVICE_NAME}" \
   --add-cloudsql-instances="${SQL_CONN}" \
   --vpc-connector="${VPC_CONNECTOR_NAME}" \
   --vpc-egress=private-ranges-only \
-  --set-env-vars="GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GCP_LOCATION=${REGION}" \
+  --set-env-vars="GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GCP_LOCATION=global" \
   --set-secrets="DATABASE_URL=${SECRET_NAME}:latest" \
-  --no-allow-unauthenticated \
+  --allow-unauthenticated \
   --memory=1Gi \
   --cpu=1 \
   --timeout=300 \
