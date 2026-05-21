@@ -26,6 +26,27 @@ def confidence_to_number(confidence):
     return CONFIDENCE_MAP.get(confidence, 0.50)
 
 
+def adapt_visual_signals(visual_signals):
+    """
+    Convert the upstream visual signal list into the format expected by the
+    interpretation layer. Returns an empty list for audio-only sessions where
+    visual_signals is None or absent.
+    """
+    if not visual_signals:
+        return []
+
+    return [
+        {
+            "timestamp": vs["timestamp"],
+            "signal_type": vs["signal_type"],
+            "label": vs["label"],
+            "confidence": confidence_to_number(vs["confidence"]),
+            "explanation": vs["explanation"],
+        }
+        for vs in visual_signals
+    ]
+
+
 def adapt_analysis_response(response, learner_baseline=None, previous_stress_proxy=None):
     """
     Adapt an API response into the signal format expected by the interpretation layer.
@@ -81,6 +102,7 @@ def adapt_analysis_response(response, learner_baseline=None, previous_stress_pro
         "stress_proxy": stress_proxy,
         "previous_stress_proxy": resolved_previous_stress,
         "confidence": confidence,
+        "visual_signals": adapt_visual_signals(response.get("visual_signals")),
     }
 
 
