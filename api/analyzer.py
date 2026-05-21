@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import copy
 import os
 from typing import Any, Optional
 
@@ -209,7 +208,7 @@ class GeminiABAAnalyzer:
 
         generation_config = types.GenerateContentConfig(
             response_mime_type="application/json",
-            response_schema=_inline_refs(GeminiAnalysisSchema.model_json_schema()),
+            response_schema=GeminiAnalysisSchema,
         )
 
         media_part = types.Part.from_bytes(data=media_bytes, mime_type=mime_type)
