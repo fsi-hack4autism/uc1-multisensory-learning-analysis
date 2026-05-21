@@ -106,13 +106,16 @@ async def analyze_session(
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Gemini analysis failed: {exc}") from exc
 
-    result = analyzer.build_response(
-        raw=raw,
-        session_id=session_id,
-        filename=audio.filename or "upload",
-        analyzed_at=analyzed_at,
-        is_video=(mime_type == "video/mp4"),
-    )
+    try:
+        result = analyzer.build_response(
+            raw=raw,
+            session_id=session_id,
+            filename=audio.filename or "upload",
+            analyzed_at=analyzed_at,
+            is_video=(mime_type == "video/mp4"),
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Response mapping failed: {exc}") from exc
 
     if db.is_enabled():
         try:

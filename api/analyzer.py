@@ -166,7 +166,13 @@ class GeminiABAAnalyzer:
         project = os.environ.get("GOOGLE_CLOUD_PROJECT", "")
         # Gemini 3.x is served only on the Vertex AI "global" endpoint.
         location = os.environ.get("GCP_LOCATION", "global")
-        self._client = genai.Client(vertexai=True, project=project, location=location)
+        timeout_ms = int(os.environ.get("GEMINI_TIMEOUT_MS", "120000"))
+        self._client = genai.Client(
+            vertexai=True,
+            project=project,
+            location=location,
+            http_options=types.HttpOptions(timeout=timeout_ms),
+        )
         self._model_name = "gemini-3.5-flash"
 
     def analyze(
@@ -224,11 +230,17 @@ class GeminiABAAnalyzer:
             summary=raw.emotion_overwhelm.summary,
         )
 
+        # Gemini sometimes returns "None" (capital-N Python repr) instead of "none".
+        echolalia_type_raw = raw.echolalia_scripting.echolalia_type or "none"
+        echolalia_type_norm = echolalia_type_raw.lower().strip()
+        if echolalia_type_norm not in ("immediate", "delayed", "scripted", "none"):
+            echolalia_type_norm = "none"
+
         echolalia = EcholaliaScriptingResult(
             detected=raw.echolalia_scripting.detected,
             confidence=raw.echolalia_scripting.confidence,  # type: ignore[arg-type]
             score=raw.echolalia_scripting.score,
-            echolalia_type=raw.echolalia_scripting.echolalia_type,  # type: ignore[arg-type]
+            echolalia_type=echolalia_type_norm,  # type: ignore[arg-type]
             instances=[
                 EcholaliaInstance(
                     phrase=inst.phrase,
