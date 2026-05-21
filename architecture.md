@@ -15,7 +15,7 @@ graph LR
     API --> P1["Upload & Store"] --> P2["Gemini Audio Analysis"] --> P3["Metrics & Scoring"] --> P4["Summary & Recommendations"]
 
     GCS -->|"Audio URI"| P2
-    P2 -->|"Audio + prompt"| GEMINI["Vertex AI\nGemini 2.5 Flash"]
+    P2 -->|"Audio + prompt"| GEMINI["Vertex AI\nGemini 3.5 Flash"]
     GEMINI -->|"Structured JSON\n(transcript, stimming,\ntone, speech rate,\nengagement)"| P2
 
     P1 & P2 & P3 & P4 -->|"Read/Write"| SQL["Cloud SQL\n(PostgreSQL)"]
@@ -41,7 +41,7 @@ graph LR
     API2 --> V1["Extract Frames\n(ffmpeg)"] --> V2["Gemini Vision Analysis"] --> V3["Merge with Audio Signals"] --> V4["Summary & Recommendations"]
 
     GCS2 -->|"Frame URIs"| V2
-    V2 -->|"Frames + prompt\n(gaze, posture, movement,\nfacial engagement)"| GEMINI2["Vertex AI\nGemini 2.5 Flash\n(vision)"]
+    V2 -->|"Frames + prompt\n(gaze, posture, movement,\nfacial engagement)"| GEMINI2["Vertex AI\nGemini 3.5 Flash\n(vision)"]
     GEMINI2 -->|"Visual signals JSON"| V2
 
     V1 & V2 & V3 & V4 -->|"Read/Write"| SQL2["Cloud SQL\n(PostgreSQL)"]
@@ -57,9 +57,9 @@ graph LR
 
 ---
 
-## Why Gemini 2.5 Flash for Audio (not Speech-to-Text)
+## Why Gemini 3.5 Flash for Audio (not Speech-to-Text)
 
-Standard Speech-to-Text only produces text — it discards prosodic and non-verbal signals. Gemini 2.5 Flash accepts raw audio and returns all of the following in a **single structured call**:
+Standard Speech-to-Text only produces text — it discards prosodic and non-verbal signals. Gemini 3.5 Flash accepts raw audio and returns all of the following in a **single structured call**:
 
 | Signal             | What it captures                                         |
 | ------------------ | -------------------------------------------------------- |
