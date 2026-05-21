@@ -16,7 +16,7 @@ flowchart TD
         A3["GET /health"]
     end
 
-    subgraph ai["Gemini 2.5 Flash  ·  Vertex AI"]
+    subgraph ai["Gemini 3.5 Flash  ·  Vertex AI"]
         M1["Emotion / Overwhelm\n─────────────────────\nscore 0–1  ·  confidence: high / med / low\ntimestamped distress signals"]
         M2["Echolalia / Scripting\n─────────────────────\nscore 0–1  ·  type: immediate / delayed / scripted / none\nper-phrase instances + repetition count"]
         M3["Conversational Context\n─────────────────────\non-topic score 0–1  ·  confidence: high / med / low\ncontext-break timestamps"]
