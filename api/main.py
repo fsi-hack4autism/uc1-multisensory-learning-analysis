@@ -28,7 +28,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="ABA Session Analyzer",
-    description="Analyzes ABA therapy session audio/video using Gemini 2.5 Flash via Vertex AI.",
+    description="Analyzes ABA therapy session audio/video using Gemini 3.5 Flash via Vertex AI.",
     version="1.0.0",
     lifespan=lifespan,
 )
