@@ -9,8 +9,14 @@
 | Name            | Role                  | Company       |
 | --------------- | --------------------- | ------------- |
 | Rishi Bhatnagar | Use Case Lead         | LPL Financial |
-| Amy Backes      | Subject Matter Expert | BCBA          |
-| Rob Reese       | Tech Lead             | Microsoft     |
+| Pratha Gupta    | Front end Expert      | Student       |
+| Mark            | Techical Lead         |               |
+| Sophie Ordell   | User Experience Expert|               |
+| Gin cheng       | Cloud Expert          |               |
+| Kevin Liang     | Techincal Expert      |               |
+| Paloma          | Analytic Expert       |               |
+| Rajaniesh       | Presentation Expert   |               |
+
 
 Output behaviors to be shown on the dashboard:
 
