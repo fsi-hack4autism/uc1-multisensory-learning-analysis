@@ -32,6 +32,13 @@ public static class ServiceExtensions
         services.AddScoped<IMetricsEngine, MetricsEngine>();
         services.AddScoped<IVideoIntelligenceService, VideoIntelligenceService>();
 
+        // ABA Session Analyzer — external Cloud Run service (optional; enabled via AbaAnalyzer:Enabled)
+        services.AddHttpClient<IAbaAnalyzerService, AbaAnalyzerService>(client =>
+        {
+            // Allow up to 10 minutes for long audio analysis
+            client.Timeout = TimeSpan.FromMinutes(10);
+        });
+
         return services;
     }
 

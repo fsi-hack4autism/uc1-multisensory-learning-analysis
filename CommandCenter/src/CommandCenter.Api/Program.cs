@@ -1,7 +1,9 @@
 using CommandCenter.Application;
 using CommandCenter.Application.DTOs;
 using CommandCenter.Application.Services;
+using CommandCenter.Domain.Interfaces;
 using CommandCenter.Infrastructure;
+using CommandCenter.Domain.Interfaces;
 using CommandCenter.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc;
 using Scalar.AspNetCore;
@@ -24,7 +26,15 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
     app.MapScalarApiReference();
-    await DataSeeder.SeedAsync(app.Services);
+    try
+    {
+        await DataSeeder.SeedAsync(app.Services);
+    }
+    catch (Exception ex)
+    {
+        var logger = app.Services.GetRequiredService<ILogger<Program>>();
+        logger.LogWarning(ex, "DataSeeder skipped — database unavailable at startup.");
+    }
 }
 
 app.UseHttpsRedirection();
@@ -164,6 +174,42 @@ sessions.MapPost("/recording", async (
 .WithName("SubmitRecording")
 .WithSummary("Submit a clip recorded in the browser as a new learning session")
 .DisableAntiforgery();
+
+// -- ABA Analyzer (manual trigger for processing pipeline / debug) ----------------
+sessions.MapPost("/{id:guid}/aba-analyze", async (
+    Guid id,
+    IAbaAnalyzerService abaAnalyzer,
+    IStorageService storage,
+    ILearningSessionRepository repo,
+    CancellationToken ct) =>
+{
+    var session = await repo.GetByIdAsync(id, ct);
+    if (session is null)
+        return Results.NotFound();
+
+    var mediaPath = session.MediaStoragePath;
+    if (string.IsNullOrWhiteSpace(mediaPath))
+        return Results.BadRequest("Session has no media file.");
+
+    string objectName;
+    if (mediaPath.StartsWith("gs://", StringComparison.OrdinalIgnoreCase))
+    {
+        var withoutScheme = mediaPath["gs://".Length..];
+        var slashIndex = withoutScheme.IndexOf('/');
+        objectName = slashIndex >= 0 ? withoutScheme[(slashIndex + 1)..] : withoutScheme;
+    }
+    else
+    {
+        objectName = mediaPath;
+    }
+
+    var filename = Path.GetFileName(objectName);
+    await using var stream = await storage.DownloadAsync(objectName, ct);
+    var result = await abaAnalyzer.AnalyzeAsync(id, stream, filename, session.Description, ct);
+    return Results.Ok(result);
+})
+.WithName("RunAbaAnalysis")
+.WithSummary("Manually trigger ABA analysis on a session's media file");
 
 app.Run();
 

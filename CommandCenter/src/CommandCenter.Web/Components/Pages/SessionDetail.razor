@@ -110,6 +110,58 @@
                         </div>
                     </div>
 
+                    @* ── ABA Analyzer debug trigger ───────────────────────────── *@
+                    <div class="card border-0 shadow-sm mt-4">
+                        <div class="card-header bg-transparent fw-semibold d-flex align-items-center gap-2">
+                            <i class="bi bi-bug-fill text-cc-amber"></i> ABA Analyzer Debug
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted small mb-3">
+                                Manually invoke the ABA Session Analyzer Cloud Run service for this session.
+                                The raw JSON response is displayed below.
+                            </p>
+                            <button class="btn btn-sm btn-outline-primary"
+                                    disabled="@_abaRunning"
+                                    @onclick="RunAbaAnalysisAsync">
+                                @if (_abaRunning)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                    <span>Running…</span>
+                                }
+                                else
+                                {
+                                    <i class="bi bi-play-fill me-1"></i><span>Run ABA Analysis</span>
+                                }
+                            </button>
+
+                            @if (_abaError is not null)
+                            {
+                                <div class="alert alert-danger mt-3 mb-0 small py-2">
+                                    <i class="bi bi-exclamation-triangle-fill me-2"></i>@_abaError
+                                </div>
+                            }
+
+                            @if (_abaDebugJson is not null)
+                            {
+                                <div class="mt-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <span class="section-label mb-0">Response</span>
+                                        <button class="btn btn-xs btn-outline-secondary"
+                                                style="font-size:.72rem;padding:2px 10px"
+                                                @onclick="() => _abaDebugExpanded = !_abaDebugExpanded">
+                                            @(_abaDebugExpanded ? "▲ Collapse" : "▼ Expand")
+                                        </button>
+                                    </div>
+                                    @if (_abaDebugExpanded)
+                                    {
+                                        <pre class="p-3 rounded small mb-0"
+                                             style="background:#0F172A;color:#E2E8F0;overflow-x:auto;max-height:480px;overflow-y:auto;white-space:pre-wrap;word-break:break-word">@_abaDebugJson</pre>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
+
                 </div>
             </div>
         }
@@ -602,6 +654,47 @@
     private string _transcriptSearch = string.Empty;
     private string? _timelineFilter;
     private CancellationTokenSource? _pollCts;
+
+    // ── ABA Analyzer debug panel ────────────────────────────────────────────
+    private bool _abaRunning;
+    private string? _abaError;
+    private string? _abaDebugJson;
+    private bool _abaDebugExpanded = true;
+
+    private async Task RunAbaAnalysisAsync()
+    {
+        _abaRunning = true;
+        _abaError = null;
+        _abaDebugJson = null;
+        StateHasChanged();
+
+        try
+        {
+            var client = HttpClientFactory.CreateClient("CommandCenterApi");
+            using var response = await client.PostAsync($"/api/sessions/{Id}/aba-analyze", null);
+            var body = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _abaError = $"HTTP {(int)response.StatusCode}: {body}";
+            }
+            else
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(body);
+                _abaDebugJson = System.Text.Json.JsonSerializer.Serialize(
+                    doc, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+            }
+        }
+        catch (Exception ex)
+        {
+            _abaError = ex.Message;
+        }
+        finally
+        {
+            _abaRunning = false;
+            StateHasChanged();
+        }
+    }
 
     // ── Processing pipeline stage definitions (AC-6.1.5) ────────────────────
     private sealed record PipelineStage(string Key, string Label);
